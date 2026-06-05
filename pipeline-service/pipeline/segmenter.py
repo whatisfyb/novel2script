@@ -64,6 +64,7 @@ async def segment_scenes(
         characters=char_str,
         locations=loc_str,
         chapter_text=chapter.text,
+        chapter_length=len(chapter.text),
     )
     data = await llm_complete(prompt, schema=SEGMENT_SCHEMA)
 
