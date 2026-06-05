@@ -289,7 +289,120 @@ def _fallback_attribute_dialogue(
             last_dialogue_speaker = others[0]
             logger.debug("Fallback attribution (non-PoV default): beat '%s' → %s", b.id, others[0])
 
+    # 5. Action beat attribution: assign unowned actions to their subject.
+    _attribute_action_beats(beats, active_speakers, characters)
+
     return beats
+
+
+def _attribute_action_beats(
+    beats: list[Beat],
+    active_speakers: list[str],
+    characters: list,
+) -> None:
+    """
+    Fill in character_text for action beats that the LLM left as None.
+
+    Action content usually has a clear grammatical subject:
+      - "周远把车停在C区第三排" → subject=周远
+      - "她拉开车门" → pronoun 她 → most recent female character
+      - "从包里掏出一个信封" → no subject → most recent action character
+
+    Heuristics (applied per beat in order):
+
+    1. **Name at start**: content starts with a character name + optional
+       particle → attribute to that character.
+    2. **Pronoun**: content starts with 她/他/她们/他们 (followed by
+       action verb) → resolve via most recent gendered character mention
+       in the scene so far. (Gender is inferred from character name via
+       a tiny heuristic; in Chinese, 一/二/三/.../十 leading names tend
+       to be ambiguous and we fall back to a default.)
+    3. **Most recent action character**: if no name or pronoun, attribute
+       to the most recent action beat's character (continuation of activity).
+    """
+
+    # 1. Build valid name set
+    valid_names: set[str] = set()
+    for c in characters:
+        name = getattr(c, "name", "")
+        if name:
+            valid_names.add(name)
+        for alias in getattr(c, "aliases", []):
+            if alias:
+                valid_names.add(alias)
+
+    # 2. Build gender map for known names. Simple heuristic:
+    #    female = name ends in common female suffixes or includes 薇/娜/丽/芳/红/梅/兰/莲/花/英/萍
+    #    male   = name ends in common male suffixes or includes 远/明/强/军/勇/刚/伟
+    #    unknown = default to "他" = "last mentioned" fallback.
+    _FEMALE_HINTS = "薇娜丽芳红梅兰莲花英萍"
+    _MALE_HINTS = "远明强军勇刚伟国建"
+    name_gender: dict[str, str] = {}
+    for n in valid_names:
+        last = n[-1] if n else ""
+        if last in _FEMALE_HINTS:
+            name_gender[n] = "female"
+        elif last in _MALE_HINTS:
+            name_gender[n] = "male"
+        # else: unknown, fall through
+
+    # 3. Walk beats in order, fill unowned actions
+    last_action_char: str | None = None
+
+    for b in beats:
+        if b.type != "action":
+            continue
+        if b.character_text:
+            last_action_char = b.character_text
+            continue
+
+        content = (b.content or "").lstrip()
+        assigned: str | None = None
+
+        # Rule 1: name at start (possibly followed by 的/了/着/是/把/给/向 + verb)
+        for n in valid_names:
+            if content.startswith(n):
+                tail_idx = len(n)
+                # Allow particle + verb continuation
+                if tail_idx >= len(content) or content[tail_idx] in "的了着是把给向/":
+                    assigned = n
+                    break
+
+        # Rule 2: pronoun at start (他/她/他们/她们)
+        if not assigned and content:
+            first_two = content[:2]
+            first_one = content[0]
+            pronoun_gender: str | None = None
+            if first_two in ("她们", "他们"):
+                pronoun_gender = "female" if first_one == "她" else "male"
+            elif first_one == "她":
+                pronoun_gender = "female"
+            elif first_one == "他":
+                pronoun_gender = "male"
+            if pronoun_gender:
+                # Resolve to most recent gendered char in beats
+                for prev in reversed(beats):
+                    if prev.character_text and prev.character_text in name_gender:
+                        if name_gender[prev.character_text] == pronoun_gender:
+                            assigned = prev.character_text
+                            break
+                if not assigned:
+                    # Fall back to any active speaker with matching gender
+                    for s in active_speakers:
+                        if name_gender.get(s) == pronoun_gender:
+                            assigned = s
+                            break
+
+        # Rule 3: most recent action character
+        if not assigned and last_action_char:
+            assigned = last_action_char
+
+        if assigned:
+            b.character_text = assigned
+            last_action_char = assigned
+            logger.debug(
+                "Action beat attribution: beat '%s' → %s", b.id, assigned,
+            )
 
 
 async def extract_beats(
@@ -355,3 +468,91 @@ async def extract_beats(
     )
 
     return beats
+
+
+def refine_cross_scene_attribution(
+    beats_by_scene: dict[str, list[Beat]],
+    scene_order: list[str],
+) -> dict[str, list[Beat]]:
+    """
+    Post-pass: refine dialogue attribution using cross-scene context.
+
+    The per-scene fallback runs in parallel and has no view of neighbouring
+    scenes. This pass walks scenes in their natural order and uses the
+    PREVIOUS scene's last attributed beat as a prior for the next scene's
+    first dialogue.
+
+    Rule (conservative — only flips when the current scene has no internal
+    evidence to contradict the prior):
+
+    If a scene's FIRST dialogue beat has character_text=Y AND the previous
+    scene's last attributed beat is an ACTION by character X (X ≠ Y) AND
+    the current scene has NO attributed action beats (no internal evidence
+    for Y) AND the current scene contains exactly 1 dialogue beat, then Y
+    is likely an LLM hallucination → flip Y → X.
+
+    Why so narrow? Multi-beat scenes with internal attributed actions
+    already have evidence. Scenes with multiple dialogue beats would have
+    the LLM give multiple attributions. Only the "single dialogue beat,
+    no actions, immediately after a scene-ending action by X" pattern is
+    safe to flip — it matches the common case where a continuous speech
+    was split across scene boundaries by the segmenter.
+
+    Args:
+        beats_by_scene: mapping of scene_key → list of Beat objects.
+        scene_order: list of scene_keys in narrative order. Scenes not in
+            this list are skipped.
+
+    Returns:
+        The same dict (mutated in place) with possibly-flipped
+        attributions.
+    """
+    prev_last_action_char: str | None = None
+
+    for scene_key in scene_order:
+        beats = beats_by_scene.get(scene_key)
+        if not beats:
+            prev_last_action_char = None
+            continue
+
+        # Find prev scene's last attributed beat's character (action only)
+        # Note: this was set in the previous iteration
+
+        # Check the current scene's structure
+        attributed_actions = [
+            b for b in beats
+            if b.type == "action" and b.character_text
+        ]
+        dialogue_beats = [
+            b for b in beats
+            if b.type == "dialogue" and b.character_text
+        ]
+
+        # Apply flip rule
+        if (
+            prev_last_action_char
+            and len(dialogue_beats) == 1
+            and not attributed_actions
+        ):
+            d = dialogue_beats[0]
+            if d.character_text != prev_last_action_char:
+                logger.debug(
+                    "Cross-scene flip: scene %s dialogue '%s' %s → %s "
+                    "(prev scene ended with action by %s, scene has no "
+                    "internal attributed action)",
+                    scene_key, d.id, d.character_text, prev_last_action_char,
+                    prev_last_action_char,
+                )
+                d.character_text = prev_last_action_char
+
+        # Update prev_last_action_char for next iteration: only from
+        # ACTION beats. Dialogue/voiceover in the prev scene should NOT
+        # set this prior — only an action implies the same character is
+        # the "continuation" of activity in the next scene.
+        prev_last_action_char = None
+        for b in reversed(beats):
+            if b.type == "action" and b.character_text:
+                prev_last_action_char = b.character_text
+                break
+
+    return beats_by_scene

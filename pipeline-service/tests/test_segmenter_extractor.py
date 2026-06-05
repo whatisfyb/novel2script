@@ -527,6 +527,256 @@ class TestTightenedNameAddressHeuristic:
 
 
 # ---------------------------------------------------------------------------
+# Cross-scene refinement tests (Commit 12)
+# ---------------------------------------------------------------------------
+
+from pipeline.extractor import refine_cross_scene_attribution
+
+
+class TestRefineCrossSceneAttribution:
+    """Verify cross-scene post-pass flips wrong first-dialogue attributions
+    when the current scene has no internal evidence."""
+
+    def test_single_dialogue_after_prev_action_flips(self) -> None:
+        """S005 pattern: prev scene ended with c1 action, current scene
+        has 1 dialogue beat attributed to c2 (LLM hallucination). Flip to c1."""
+        beats_by_scene = {
+            "ch3_s4": [
+                ExtBeat(type="action", character_text="周远", content="把手电筒递给林薇"),
+            ],
+            "ch3_s5": [
+                ExtBeat(type="dialogue", character_text="林薇",
+                        content="三楼，最西边的房间。"),
+            ],
+        }
+        refine_cross_scene_attribution(beats_by_scene, ["ch3_s4", "ch3_s5"])
+        # Should be flipped to 周远
+        assert beats_by_scene["ch3_s5"][0].character_text == "周远"
+
+    def test_multi_dialogue_does_not_flip(self) -> None:
+        """If the current scene has multiple dialogue beats, internal
+        alternation already ran — don't override."""
+        beats_by_scene = {
+            "ch1_s1": [
+                ExtBeat(type="action", character_text="周远", content="接起电话"),
+            ],
+            "ch1_s2": [
+                ExtBeat(type="dialogue", character_text="林薇", content="我需要你帮忙。"),
+                ExtBeat(type="dialogue", character_text="周远", content="你怎么有我的电话？"),
+            ],
+        }
+        refine_cross_scene_attribution(beats_by_scene, ["ch1_s1", "ch1_s2"])
+        # Multi-dialogue scene → no flip
+        assert beats_by_scene["ch1_s2"][0].character_text == "林薇"
+        assert beats_by_scene["ch1_s2"][1].character_text == "周远"
+
+    def test_scene_with_action_does_not_flip(self) -> None:
+        """If the current scene has its own attributed action, that's
+        internal evidence — don't override the dialogue."""
+        beats_by_scene = {
+            "ch1_s1": [
+                ExtBeat(type="action", character_text="周远", content="接起电话"),
+            ],
+            "ch1_s2": [
+                ExtBeat(type="action", character_text="周远", content="坐起来"),
+                ExtBeat(type="dialogue", character_text="林薇", content="我需要你帮忙。"),
+            ],
+        }
+        refine_cross_scene_attribution(beats_by_scene, ["ch1_s1", "ch1_s2"])
+        # Scene has internal action → don't flip
+        assert beats_by_scene["ch1_s2"][1].character_text == "林薇"
+
+    def test_no_prev_action_does_not_flip(self) -> None:
+        """If previous scene has no attributed action, no flip."""
+        beats_by_scene = {
+            "ch1_s1": [
+                ExtBeat(type="voiceover", character_text="周远", content="叙述"),
+            ],
+            "ch1_s2": [
+                ExtBeat(type="dialogue", character_text="林薇", content="你好"),
+            ],
+        }
+        refine_cross_scene_attribution(beats_by_scene, ["ch1_s1", "ch1_s2"])
+        # Prev scene's last beat was voiceover, not action → no flip
+        assert beats_by_scene["ch1_s2"][0].character_text == "林薇"
+
+    def test_dialogue_after_dialogue_does_not_flip(self) -> None:
+        """If previous scene's last beat was a dialogue, that's a real
+        speaker, not an action — no flip."""
+        beats_by_scene = {
+            "ch1_s1": [
+                ExtBeat(type="dialogue", character_text="林薇", content="最后一句"),
+            ],
+            "ch1_s2": [
+                ExtBeat(type="dialogue", character_text="周远", content="我同意"),
+            ],
+        }
+        refine_cross_scene_attribution(beats_by_scene, ["ch1_s1", "ch1_s2"])
+        # Prev was dialogue → prev_last_action_char stays None → no flip
+        assert beats_by_scene["ch1_s2"][0].character_text == "周远"
+
+    def test_three_scenes_chain(self) -> None:
+        """Three-scene chain: prev's last action propagates correctly."""
+        beats_by_scene = {
+            "ch1_s1": [
+                ExtBeat(type="action", character_text="周远", content="接电话"),
+            ],
+            "ch1_s2": [
+                ExtBeat(type="dialogue", character_text="林薇", content="我需要帮忙"),
+            ],
+            "ch1_s3": [
+                ExtBeat(type="action", character_text="林薇", content="挂断"),
+                ExtBeat(type="dialogue", character_text="林薇", content="记住"),
+            ],
+        }
+        refine_cross_scene_attribution(beats_by_scene, ["ch1_s1", "ch1_s2", "ch1_s3"])
+        # ch1_s2: prev=ch1_s1 action c1 → flip 林薇→周远
+        assert beats_by_scene["ch1_s2"][0].character_text == "周远"
+        # ch1_s3: prev=ch1_s2 dialogue c1 (after flip), no flip rule
+        # prev_last_action_char = last beat with char in ch1_s2 = c1 (the flipped dialogue)
+        # but the rule only fires for prev action, not prev dialogue
+        # so no flip in ch1_s3
+        assert beats_by_scene["ch1_s3"][1].character_text == "林薇"
+
+    def test_empty_scene_order_unchanged(self) -> None:
+        """If scene_order is empty, nothing happens."""
+        beats_by_scene = {
+            "ch1_s1": [ExtBeat(type="dialogue", character_text="周远", content="x")],
+        }
+        refine_cross_scene_attribution(beats_by_scene, [])
+        # Unchanged
+        assert beats_by_scene["ch1_s1"][0].character_text == "周远"
+
+
+# ---------------------------------------------------------------------------
+# Action beat attribution tests (Commit 13)
+# ---------------------------------------------------------------------------
+
+from pipeline.extractor import _attribute_action_beats
+
+
+class TestAttributeActionBeats:
+    """Verify unowned action beats get attributed to their grammatical
+    subject via name/pronoun/most-recent heuristics."""
+
+    def test_name_at_start_with_particle(self) -> None:
+        """'周远把车停在C区第三排' → 周远."""
+        beats = [
+            ExtBeat(type="action", character_text=None,
+                    content="周远把车停在C区第三排，熄了火，没有下车。"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        _attribute_action_beats(beats, ["周远", "林薇"], chars)
+        assert beats[0].character_text == "周远"
+
+    def test_pronoun_female_resolves_to_female(self) -> None:
+        """'她拉开车门坐进副驾驶' → 她 → 林薇 (most recent female)."""
+        beats = [
+            ExtBeat(type="action", character_text="林薇", content="比三年前瘦了很多"),
+            ExtBeat(type="action", character_text=None, content="她拉开车门坐进副驾驶"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        _attribute_action_beats(beats, ["周远", "林薇"], chars)
+        assert beats[1].character_text == "林薇"
+
+    def test_most_recent_action_continuation(self) -> None:
+        """'从包里掏出一个牛皮纸信封' → no name, no pronoun → most recent
+        action char (林薇 from prior beat)."""
+        beats = [
+            ExtBeat(type="action", character_text="林薇", content="拉开车门坐进副驾驶"),
+            ExtBeat(type="action", character_text=None,
+                    content="从包里掏出一个牛皮纸信封"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        _attribute_action_beats(beats, ["周远", "林薇"], chars)
+        assert beats[1].character_text == "林薇"
+
+    def test_owned_action_unchanged(self) -> None:
+        """Already-attributed action beats are not overwritten."""
+        beats = [
+            ExtBeat(type="action", character_text="周远", content="把车停了"),
+        ]
+        chars = [Character(name="周远", role="protagonist")]
+        _attribute_action_beats(beats, ["周远"], chars)
+        assert beats[0].character_text == "周远"
+
+    def test_no_subject_falls_back_to_recent(self) -> None:
+        """Action with no name/pronoun and no recent action → still gets
+        last_action_char from prior beat (continuation)."""
+        beats = [
+            ExtBeat(type="action", character_text="周远", content="把车停了"),
+            ExtBeat(type="action", character_text=None, content="没有下车。"),
+        ]
+        chars = [Character(name="周远", role="protagonist")]
+        _attribute_action_beats(beats, ["周远"], chars)
+        # Continuation of 周远's activity
+        assert beats[1].character_text == "周远"
+
+    def test_dialogue_does_not_count_for_continuation(self) -> None:
+        """Voiceover/dialogue in between shouldn't break the action
+        continuity chain for action → action attribution."""
+        beats = [
+            ExtBeat(type="action", character_text="林薇", content="走过来"),
+            ExtBeat(type="dialogue", character_text="林薇", content="你好"),
+            ExtBeat(type="action", character_text=None, content="把信封递过来"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        _attribute_action_beats(beats, ["周远", "林薇"], chars)
+        # The dialogue is 林薇's, but the prior ACTION char is also 林薇
+        # Rule 3 uses last_action_char (only actions), so result = 林薇
+        assert beats[2].character_text == "林薇"
+
+    @pytest.mark.asyncio
+    async def test_integration_fallback_then_action(self) -> None:
+        """End-to-end: extract_beats applies both dialogue fallback
+        (already tested above) and action beat attribution."""
+        mock_response = {
+            "beats": [
+                {"type": "action", "character_id": None, "character_text": "周远",
+                 "content": "把车停在C区", "parenthetical": None, "emotion": None},
+                {"type": "dialogue", "character_id": None, "character_text": "周远",
+                 "content": "周远，是我。", "parenthetical": None, "emotion": None},
+                {"type": "action", "character_id": None, "character_text": None,
+                 "content": "她拉开车门坐进副驾驶", "parenthetical": None, "emotion": None},
+                {"type": "action", "character_id": None, "character_text": None,
+                 "content": "从包里掏出牛皮纸信封", "parenthetical": None, "emotion": None},
+            ]
+        }
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        with patch(
+            "pipeline.extractor.llm_complete", new_callable=AsyncMock
+        ) as mock:
+            mock.return_value = mock_response
+            beats = await extract_beats(
+                "周远把车停了。林薇上车。",
+                characters=chars,
+            )
+
+        # dialogue 1: pre-pass clears self-reference (周远,) → fallback
+        # 4a fires → 林薇
+        assert beats[1].character_text == "林薇"
+        # action 2: 她 pronoun → 林薇
+        assert beats[2].character_text == "林薇"
+        # action 3: continuation of 林薇
+        assert beats[3].character_text == "林薇"
+
+
+# ---------------------------------------------------------------------------
 # Fallback dialogue attribution tests (Commit 8)
 # ---------------------------------------------------------------------------
 

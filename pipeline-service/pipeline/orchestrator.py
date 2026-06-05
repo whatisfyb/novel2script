@@ -23,7 +23,7 @@ from pipeline.parser import parse_file
 from pipeline.splitter import split_chapters
 from pipeline.analyzer import analyze_structure
 from pipeline.segmenter import segment_scenes
-from pipeline.extractor import extract_beats
+from pipeline.extractor import extract_beats, refine_cross_scene_attribution
 from pipeline.assembler import assemble_yaml
 
 logger = logging.getLogger(__name__)
@@ -148,6 +148,13 @@ async def run_pipeline(
     total_beats = sum(len(v) for v in beats_by_scene.values())
     logger.info("  → %d scenes, %d beats total", total_scenes, total_beats)
     await _notify("segmenter", 100)
+
+    # Cross-scene refinement: scenes are extracted in parallel so each
+    # scene's fallback has no view of its neighbours. Walk in narrative
+    # order and use the previous scene's last attributed beat as a prior
+    # for the next scene's first dialogue. (Commit 12.)
+    _scene_order = sorted(beats_by_scene.keys())
+    refine_cross_scene_attribution(beats_by_scene, _scene_order)
 
     # ---- Stage 6: YAML Assembler ----
     await _notify("assembler", 0)
