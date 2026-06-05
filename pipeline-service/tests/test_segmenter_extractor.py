@@ -438,6 +438,95 @@ class TestNormalizeCharacterAttribution:
 
 
 # ---------------------------------------------------------------------------
+# Tightened name-address heuristic tests (Commit 11)
+# ---------------------------------------------------------------------------
+
+class TestTightenedNameAddressHeuristic:
+    """Verify 4a (name-in-content) only fires on explicit address patterns,
+    not passive mentions like '张明的遗书' or '张明死了'."""
+
+    def test_address_pattern_triggers(self) -> None:
+        """'周远，是我。' → 周远 is addressed, speaker is 林薇."""
+        beats = [
+            ExtBeat(type="dialogue", character_text=None, content="周远，是我。"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        _fallback_attribute_dialogue(beats, chars, "周远接电话。林薇来电。")
+        assert beats[0].character_text == "林薇"
+
+    def test_passive_possession_does_not_trigger(self) -> None:
+        """'张明的遗书，收件人是你。' → 张明 is referent, NOT addressee.
+        The mention is '张明的' (possessive), no address punctuation.
+        Without previous dialogue speaker, falls through to non-PoV default
+        → 林薇 (PoV is 周远 from preceding action)."""
+        beats = [
+            ExtBeat(type="action", character_text="周远", content="把车停好"),
+            ExtBeat(type="dialogue", character_text=None,
+                    content="张明的遗书，收件人是你。"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+            Character(name="张明", role="antagonist"),  # mis-classified dead char
+        ]
+        _fallback_attribute_dialogue(beats, chars, "周远把车停好。林薇递上信封。")
+        # 张明 should NOT be treated as addressee (no '张明，' prefix)
+        # Falls through to non-PoV default → 林薇
+        assert beats[1].character_text == "林薇"
+
+    def test_passive_subject_does_not_trigger(self) -> None:
+        """'张明死了，今天下午的事。' → 张明 is subject of 死了, not addressee.
+        Falls through to alternation (no prev dialogue) or non-PoV default."""
+        beats = [
+            ExtBeat(type="action", character_text="周远", content="接起电话"),
+            ExtBeat(type="dialogue", character_text=None,
+                    content="这不重要。张明死了，今天下午的事。警察说是自杀，但我不信。"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+            Character(name="张明", role="antagonist"),
+        ]
+        _fallback_attribute_dialogue(beats, chars, "周远接电话。林薇来电。")
+        # No 4a trigger (no name + punctuation at start)
+        # 4b: no previous dialogue → skip
+        # 4c action-context: prev action is c1 → others = [林薇, 张明] → c2 林薇
+        assert beats[1].character_text == "林薇"
+
+    def test_name_at_end_with_comma_triggers(self) -> None:
+        """'你好，周远。' → 周远 is addressed at the end (followed by 。)."""
+        beats = [
+            ExtBeat(type="dialogue", character_text=None, content="你好，周远。"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        _fallback_attribute_dialogue(beats, chars, "周远。林薇。")
+        # Content does NOT start with 周远, so 4a skips
+        # Falls through to non-PoV default → 林薇 (PoV = 周远)
+        # Result: 林薇 (not triggered by 4a but by fallback)
+        assert beats[0].character_text == "林薇"
+
+    def test_name_in_middle_does_not_trigger(self) -> None:
+        """'像周远一样' → name in middle, NOT at start, no trigger."""
+        beats = [
+            ExtBeat(type="dialogue", character_text=None, content="像周远一样活着。"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        _fallback_attribute_dialogue(beats, chars, "周远。林薇。")
+        # No 4a trigger
+        # Non-PoV default → 林薇
+        assert beats[0].character_text == "林薇"
+
+
+# ---------------------------------------------------------------------------
 # Fallback dialogue attribution tests (Commit 8)
 # ---------------------------------------------------------------------------
 

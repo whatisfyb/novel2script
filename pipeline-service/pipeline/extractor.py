@@ -229,15 +229,32 @@ def _fallback_attribute_dialogue(
 
         # --- Dialogue heuristics ---
 
-        # 4a. Name-in-content: dialogue addresses a character by name
+        # 4a. Name-in-content: dialogue explicitly addresses a character
+        # by name at the very start, followed by address punctuation
+        # (，。：！？ + whitespace). Only address patterns trigger;
+        # passive mentions like "张明的遗书" or "张明死了" do NOT —
+        # those are referents, not addressees.
         content = b.content or ""
-        addressed = [s for s in active_speakers if s in content]
+        _ADDRESS_PUNCT = set("，,。.！!？?：: 　")
+        addressed: list[str] = []
+        for s in active_speakers:
+            if not content.startswith(s):
+                continue
+            tail_idx = len(s)
+            if tail_idx >= len(content):
+                continue
+            next_char = content[tail_idx]
+            if next_char in _ADDRESS_PUNCT:
+                addressed.append(s)
         if addressed:
             others = [s for s in active_speakers if s not in addressed]
             if others:
                 b.character_text = others[0]
                 last_dialogue_speaker = others[0]
-                logger.debug("Fallback attribution (name-in-content): beat '%s' → %s", b.id, others[0])
+                logger.debug(
+                    "Fallback attribution (name-address): beat '%s' → %s (addressed=%s)",
+                    b.id, others[0], addressed,
+                )
                 continue
 
         # 4b. Speaker alternation: previous dialogue speaker known
