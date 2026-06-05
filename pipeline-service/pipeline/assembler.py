@@ -214,7 +214,6 @@ def assemble_yaml(
                 "id": "act_1",
                 "title": "第一幕",
                 "chapters": sorted(scenes_by_chapter.keys()),
-                "synopsis": meta.get("synopsis", ""),
                 "scenes": all_scenes,
             }
         ],
