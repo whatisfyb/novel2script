@@ -441,3 +441,138 @@ class TestValidateCoverage:
             _validate_coverage([], chapter_length=100, chapter_order=1)
 
         assert any("0 scenes" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Overlap resolution tests (Commit 7)
+# ---------------------------------------------------------------------------
+
+from pipeline.segmenter import _resolve_overlaps
+
+
+class TestResolveOverlaps:
+    """Verify _resolve_overlaps eliminates overlapping segments without gaps."""
+
+    def test_no_overlap_returns_unchanged(self) -> None:
+        scenes = [
+            Scene(location="A", time="day", type="interior", description="",
+                  text_segment=(0, 50), chapter_order=1),
+            Scene(location="B", time="night", type="exterior", description="",
+                  text_segment=(50, 100), chapter_order=1),
+        ]
+        result = _resolve_overlaps(scenes)
+        assert len(result) == 2
+        assert result[0].text_segment == (0, 50)
+        assert result[1].text_segment == (50, 100)
+
+    def test_simple_overlap_second_start_adjusted(self) -> None:
+        scenes = [
+            Scene(location="A", time="day", type="interior", description="",
+                  text_segment=(0, 60), chapter_order=1),
+            Scene(location="B", time="night", type="exterior", description="",
+                  text_segment=(40, 100), chapter_order=1),
+        ]
+        result = _resolve_overlaps(scenes)
+        assert len(result) == 2
+        assert result[0].text_segment == (0, 60)
+        assert result[1].text_segment == (60, 100)
+
+    def test_unsorted_input_sorted_correctly(self) -> None:
+        scenes = [
+            Scene(location="B", time="night", type="exterior", description="",
+                  text_segment=(40, 100), chapter_order=1),
+            Scene(location="A", time="day", type="interior", description="",
+                  text_segment=(0, 60), chapter_order=1),
+        ]
+        result = _resolve_overlaps(scenes)
+        assert len(result) == 2
+        assert result[0].text_segment == (0, 60)
+        assert result[1].text_segment == (60, 100)
+
+    def test_fully_contained_scene_dropped(self) -> None:
+        scenes = [
+            Scene(location="A", time="day", type="interior", description="",
+                  text_segment=(0, 100), chapter_order=1),
+            Scene(location="B", time="night", type="exterior", description="",
+                  text_segment=(20, 50), chapter_order=1),
+        ]
+        result = _resolve_overlaps(scenes)
+        assert len(result) == 1
+        assert result[0].text_segment == (0, 100)
+
+    def test_multiple_consecutive_overlaps(self) -> None:
+        scenes = [
+            Scene(location="A", time="day", type="interior", description="",
+                  text_segment=(0, 40), chapter_order=1),
+            Scene(location="B", time="night", type="exterior", description="",
+                  text_segment=(30, 70), chapter_order=1),
+            Scene(location="C", time="dawn", type="interior", description="",
+                  text_segment=(60, 100), chapter_order=1),
+        ]
+        result = _resolve_overlaps(scenes)
+        assert len(result) == 3
+        assert result[0].text_segment == (0, 40)
+        assert result[1].text_segment == (40, 70)
+        assert result[2].text_segment == (70, 100)
+
+    def test_single_scene_returns_copy(self) -> None:
+        scenes = [
+            Scene(location="A", time="day", type="interior", description="",
+                  text_segment=(0, 100), chapter_order=1),
+        ]
+        result = _resolve_overlaps(scenes)
+        assert len(result) == 1
+        assert result[0].text_segment == (0, 100)
+
+    def test_empty_input_returns_empty(self) -> None:
+        result = _resolve_overlaps([])
+        assert result == []
+
+    def test_overlap_drops_scene_when_resolved_start_equals_end(self) -> None:
+        scenes = [
+            Scene(location="A", time="day", type="interior", description="",
+                  text_segment=(0, 80), chapter_order=1),
+            Scene(location="B", time="night", type="exterior", description="",
+                  text_segment=(70, 80), chapter_order=1),
+            Scene(location="C", time="dawn", type="interior", description="",
+                  text_segment=(80, 100), chapter_order=1),
+        ]
+        result = _resolve_overlaps(scenes)
+        # B is fully contained after overlap resolution (start=80=end), dropped
+        assert len(result) == 2
+        assert result[0].text_segment == (0, 80)
+        assert result[1].text_segment == (80, 100)
+
+    @pytest.mark.asyncio
+    async def test_integration_segment_scenes_resolves_overlap(self) -> None:
+        """Verify segment_scenes() applies overlap resolution after snap."""
+        text = "句子一。句子二。句子三。"
+        mock_response = {
+            "scenes": [
+                {
+                    "location": "室内",
+                    "time": "day",
+                    "type": "interior",
+                    "description": "场景一",
+                    "text_segment": [0, 8],  # will snap to first 。 → 4
+                },
+                {
+                    "location": "室外",
+                    "time": "night",
+                    "type": "exterior",
+                    "description": "场景二",
+                    "text_segment": [2, 13],  # will snap backward → 0? or 5?
+                },
+            ]
+        }
+        chapter = Chapter(title="测试", text=text, order=1)
+        with patch(
+            "pipeline.segmenter.llm_complete", new_callable=AsyncMock
+        ) as mock:
+            mock.return_value = mock_response
+            scenes = await segment_scenes(chapter)
+
+        # Verify no overlap
+        for i in range(1, len(scenes)):
+            assert scenes[i].text_segment[0] >= scenes[i - 1].text_segment[1], \
+                f"Overlap detected: scene {i} start {scenes[i].text_segment[0]} < scene {i-1} end {scenes[i-1].text_segment[1]}"

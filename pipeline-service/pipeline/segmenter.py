@@ -85,6 +85,74 @@ def _snap_offset_to_boundary(text: str, offset: int, snap_forward: bool) -> int:
         return 0
 
 
+def _resolve_overlaps(scenes: list[Scene]) -> list[Scene]:
+    """
+    Eliminate overlapping regions between consecutive scenes.
+
+    The snap function can push adjacent segment boundaries outward (end
+    snaps forward, start snaps backward), creating overlap windows. This
+    second pass enforces strict non-overlap by:
+      1. Sorting scenes by start offset.
+      2. For each adjacent pair (A, B), if B.start < A.end, set B.start = A.end.
+      3. Dropping any scene that collapses to zero or negative length.
+
+    Gaps are left untouched — they indicate content the LLM chose not to
+    assign to any scene, which is surfaced by _validate_coverage as a warning.
+
+    Args:
+        scenes: list of Scene objects with snapped text_segments.
+
+    Returns:
+        New list of Scene objects with guaranteed non-overlapping segments.
+        May be shorter than input if fully-contained scenes were dropped.
+    """
+    if len(scenes) <= 1:
+        return list(scenes)
+
+    sorted_scenes = sorted(scenes, key=lambda s: s.text_segment[0])
+    resolved: list[Scene] = [sorted_scenes[0]]
+
+    for scene in sorted_scenes[1:]:
+        prev_end = resolved[-1].text_segment[1]
+        curr_start, curr_end = scene.text_segment
+
+        if curr_start < prev_end:
+            overlap = prev_end - curr_start
+            new_start = prev_end
+            if new_start >= curr_end:
+                # Scene is entirely contained within the previous scene — drop it.
+                logger.warning(
+                    "Dropping scene at %s (chapter %d): fully contained in previous scene "
+                    "after overlap resolution (original [%d, %d), prev_end=%d)",
+                    scene.location,
+                    scene.chapter_order,
+                    curr_start,
+                    curr_end,
+                    prev_end,
+                )
+                continue
+            logger.warning(
+                    "Resolving %d-char overlap in chapter %d: scene '%s' start moved %d → %d",
+                    overlap,
+                    scene.chapter_order,
+                    scene.location,
+                    curr_start,
+                    new_start,
+                )
+            scene = Scene(
+                location=scene.location,
+                time=scene.time,
+                type=scene.type,
+                description=scene.description,
+                text_segment=(new_start, curr_end),
+                chapter_order=scene.chapter_order,
+            )
+
+        resolved.append(scene)
+
+    return resolved
+
+
 def _validate_coverage(
     scenes: list[Scene],
     chapter_length: int,
@@ -240,6 +308,7 @@ async def segment_scenes(
             )
         )
 
+    scenes = _resolve_overlaps(scenes)
     _validate_coverage(scenes, chapter_len, chapter.order)
 
     return scenes
