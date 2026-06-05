@@ -41,6 +41,76 @@ class Beat:
     emotion: str | None = None  # emotional state
 
 
+def _normalize_character_attribution(
+    beats: list[Beat],
+    characters: list,
+) -> set[str]:
+    """
+    Pre-pass: clear character_text when LLM produced a truthy-but-invalid value.
+
+    Two failure modes are corrected before the main fallback runs:
+
+    1. **Invalid name**: The LLM returned a string for character_text that is
+       not in the known character name/alias set (e.g., "她", "电话那头",
+       "那个女人"). These are truthy but the assembler cannot map them
+       to a character ID — they would become character: null. Clearing
+       them lets the fallback re-attribution run.
+
+    2. **Self-reference**: The LLM attributed a dialogue beat to character X
+       but the content opens with "X，" or "X。" — meaning X is the person
+       being ADDRESSED, not the speaker. For example, "周远，是我。" was
+       attributed to 周远 himself, but no one says their own name when
+       calling someone. The speaker is a different character. Clearing
+       character_text triggers the fallback to assign the actual speaker.
+
+    Returns the set of valid character names (name + aliases) so the
+    fallback does not recompute it.
+    """
+    # Build the set of valid names once
+    valid_names: set[str] = set()
+    for c in characters:
+        name = getattr(c, "name", "")
+        if name:
+            valid_names.add(name)
+        for alias in getattr(c, "aliases", []):
+            if alias:
+                valid_names.add(alias)
+
+    # Punctuation that follows a name when it is being addressed, not spoken
+    _ADDRESS_PUNCT = set("，,。.！!？?：: 　")
+
+    for b in beats:
+        if b.type not in ("dialogue", "voiceover"):
+            continue
+        if not b.character_text:
+            continue
+
+        # Mode 1: invalid name → clear
+        if b.character_text not in valid_names:
+            logger.debug(
+                "Normalize: clearing invalid character_text %r on beat '%s'",
+                b.character_text, b.id,
+            )
+            b.character_text = None
+            continue
+
+        # Mode 2: self-reference detection (dialogue only)
+        if b.type == "dialogue":
+            content = b.content or ""
+            name = b.character_text
+            if content.startswith(name):
+                after = content[len(name):len(name) + 1]
+                if after and after in _ADDRESS_PUNCT:
+                    logger.debug(
+                        "Normalize: self-reference detected on beat '%s' "
+                        "(content starts with %r as address)",
+                        b.id, name,
+                    )
+                    b.character_text = None
+
+    return valid_names
+
+
 def _fallback_attribute_dialogue(
     beats: list[Beat],
     characters: list,
@@ -49,6 +119,9 @@ def _fallback_attribute_dialogue(
     """
     Post-LLM fallback: assign character_text to dialogue/voiceover beats
     that the LLM left as character_text=None.
+
+    A pre-pass (`_normalize_character_attribution`) first clears invalid
+    or self-referencing attributions so this fallback can re-attempt them.
 
     Heuristics (applied in order of confidence):
 
@@ -81,6 +154,9 @@ def _fallback_attribute_dialogue(
     """
     if not beats or not characters:
         return beats
+
+    # 0. Pre-pass: clear invalid/self-referencing character_text
+    _normalize_character_attribution(beats, characters)
 
     # 1. Determine active speakers: non-extra characters named in scene text.
     active_speakers: list[str] = []

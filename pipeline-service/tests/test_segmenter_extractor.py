@@ -227,6 +227,138 @@ class TestExtractBeats:
 
 
 # ---------------------------------------------------------------------------
+# Normalization tests (Commit 9)
+# ---------------------------------------------------------------------------
+
+from pipeline.extractor import _normalize_character_attribution
+
+
+class TestNormalizeCharacterAttribution:
+    """Verify pre-pass clears invalid / self-referencing attributions."""
+
+    def test_invalid_name_cleared(self) -> None:
+        beats = [
+            ExtBeat(type="dialogue", character_text="电话那头", content="周远，是我。"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        _normalize_character_attribution(beats, chars)
+        assert beats[0].character_text is None
+
+    def test_pronoun_invalid_name_cleared(self) -> None:
+        """Pronouns like 她/他 are not character names."""
+        beats = [
+            ExtBeat(type="dialogue", character_text="她", content="我需要你帮忙。"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        _normalize_character_attribution(beats, chars)
+        assert beats[0].character_text is None
+
+    def test_self_reference_with_comma_cleared(self) -> None:
+        """'周远，是我。' attributed to 周远 → speaker is NOT 周远 → clear."""
+        beats = [
+            ExtBeat(type="dialogue", character_text="周远", content="周远，是我。"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        _normalize_character_attribution(beats, chars)
+        assert beats[0].character_text is None
+
+    def test_self_reference_with_period_cleared(self) -> None:
+        """'林薇。' attributed to 林薇 at sentence start → clear."""
+        beats = [
+            ExtBeat(type="dialogue", character_text="林薇", content="林薇。"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        _normalize_character_attribution(beats, chars)
+        assert beats[0].character_text is None
+
+    def test_valid_attribution_preserved(self) -> None:
+        """Normal attribution where the speaker actually IS the named char."""
+        beats = [
+            ExtBeat(type="dialogue", character_text="周远", content="我怎么有你的电话？"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        _normalize_character_attribution(beats, chars)
+        # Content does NOT start with "周远，" so attribution is preserved
+        assert beats[0].character_text == "周远"
+
+    def test_alias_accepted_as_valid(self) -> None:
+        """An alias is in the valid set, so it's not cleared."""
+        beats = [
+            ExtBeat(type="dialogue", character_text="老周", content="你来了。"),
+        ]
+        chars = [
+            Character(name="周远", aliases=["老周"], role="protagonist"),
+        ]
+        _normalize_character_attribution(beats, chars)
+        assert beats[0].character_text == "老周"
+
+    def test_action_beats_unaffected(self) -> None:
+        """Normalization should only touch dialogue/voiceover beats."""
+        beats = [
+            ExtBeat(type="action", character_text="她", content="走过来"),
+        ]
+        chars = [Character(name="林薇", role="supporting")]
+        _normalize_character_attribution(beats, chars)
+        # Action beats are not normalized
+        assert beats[0].character_text == "她"
+
+    def test_voiceover_self_reference_preserved(self) -> None:
+        """Voiceover that starts with the character's name is NOT cleared
+        because voiceover is often narrator/internal monologue; the name
+        may be a deliberate address by the narrator."""
+        beats = [
+            ExtBeat(type="voiceover", character_text="周远", content="周远，醒来。"),
+        ]
+        chars = [Character(name="周远", role="protagonist")]
+        _normalize_character_attribution(beats, chars)
+        # Voiceover self-reference is preserved (ambiguous; not a clear error)
+        assert beats[0].character_text == "周远"
+
+    def test_integration_fallback_after_normalization(self) -> None:
+        """Verify the full flow: normalize → fallback → correct attribution."""
+        beats = [
+            ExtBeat(type="action", character_text="周远", content="接起电话"),
+            ExtBeat(type="dialogue", character_text="周远", content="周远，是我。"),  # LLM wrong
+            ExtBeat(type="action", character_text="周远", content="猛地坐起来"),
+            ExtBeat(type="dialogue", character_text="周远", content="你怎么有我的电话？"),
+            ExtBeat(type="dialogue", character_text="电话那头", content="这不重要。"),  # LLM invalid
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        scene_text = "周远接电话。林薇来电。"
+
+        # Pre-pass clears the wrong attributions
+        _normalize_character_attribution(beats, chars)
+        assert beats[1].character_text is None  # self-reference cleared
+        assert beats[4].character_text is None  # invalid name cleared
+
+        # Then fallback runs and attributes them
+        _fallback_attribute_dialogue(beats, chars, scene_text)
+
+        # beat[1]: content addresses 周远 → speaker is 林薇
+        assert beats[1].character_text == "林薇"
+        # beat[4]: alternation from beat[3] (周远) → 林薇
+        assert beats[4].character_text == "林薇"
+
+
+# ---------------------------------------------------------------------------
 # Fallback dialogue attribution tests (Commit 8)
 # ---------------------------------------------------------------------------
 
