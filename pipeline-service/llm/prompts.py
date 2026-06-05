@@ -42,7 +42,7 @@ SEGMENT_SCENES_PROMPT = """\
 每个场景需要标注：
 - location: 场景发生地点（从已知地点中选择，或标注新地点）
 - time: 时间（day/night/dawn/dusk/continuous）
-- type: 室内/室外（interior/exterior）
+- type: 场景类型，**只允许两个枚举值之一**：`interior`（室内）或 `exterior`（室外）。严禁使用 indoor / outdoor / 等其他写法。
 - description: 一句话场景描述
 - text_segment: [start_offset, end_offset] 在原文中的字符偏移量
 
