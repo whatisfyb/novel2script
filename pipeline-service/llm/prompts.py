@@ -1,0 +1,119 @@
+"""
+Prompt templates for each LLM-powered pipeline stage.
+
+Templates use Python string formatting with named placeholders.
+Each template is paired with a JSON schema from schemas.py.
+"""
+
+# ---------------------------------------------------------------------------
+# Stage 3: Structure Analysis — extract characters, locations, synopsis
+# ---------------------------------------------------------------------------
+
+ANALYZE_STRUCTURE_PROMPT = """\
+你是一位专业的剧本结构分析师。请阅读以下小说文本，提取以下信息：
+
+1. **synopsis**: 故事梗概（不超过200字）
+2. **characters**: 所有出场人物列表
+   - name: 标准姓名（中文名用汉字，如"林晓"）
+   - aliases: 文中出现的其他称呼（如"汪教授"、"老王"）
+   - role: 主角/配角/反派/龙套（protagonist/supporting/antagonist/extra）
+   - description: 一句话人物描述
+3. **locations**: 所有场景地点列表
+   - name: 地点名称
+   - type: 室内/室外/混合/虚拟（indoor/outdoor/mixed/virtual）
+   - description: 一句话地点描述
+
+小说文本：
+---
+{text}
+---
+
+请以 JSON 格式输出，严格按照以下结构：
+{{"synopsis": "...", "characters": [...], "locations": [...]}}
+"""
+
+# ---------------------------------------------------------------------------
+# Stage 4: Scene Segmentation — detect scene boundaries within a chapter
+# ---------------------------------------------------------------------------
+
+SEGMENT_SCENES_PROMPT = """\
+你是一位专业的剧本场景分割师。请阅读以下小说章节文本，将它分割为独立场景。
+
+每个场景需要标注：
+- location: 场景发生地点（从已知地点中选择，或标注新地点）
+- time: 时间（day/night/dawn/dusk/continuous）
+- type: 室内/室外（interior/exterior）
+- description: 一句话场景描述
+- text_segment: [start_offset, end_offset] 在原文中的字符偏移量
+
+已知角色：{characters}
+已知地点：{locations}
+
+章节文本：
+---
+{chapter_text}
+---
+
+请以 JSON 格式输出：
+{{"scenes": [{{"location": "...", "time": "...", "type": "...", "description": "...", "text_segment": [start, end]}}]}}
+"""
+
+# ---------------------------------------------------------------------------
+# Stage 5: Beat Extraction — extract action/dialogue beats from a scene
+# ---------------------------------------------------------------------------
+
+EXTRACT_BEATS_PROMPT = """\
+你是一位专业的剧本节拍提取师。请阅读以下场景文本，提取每一个叙事节拍（beat）。
+
+节拍类型：
+- action: 人物动作描写
+- dialogue: 对话（含说话人）
+- transition: 场景转换
+- voiceover: 旁白/内心独白
+- montage: 蒙太奇段落
+
+每个节拍需要标注：
+- type: 节拍类型
+- character_id: 人物ID（从已知角色中匹配，无明确角色时为null）
+- character_text: 原文中出现的人物名称
+- content: 节拍内容（精简后的剧本语言）
+- parenthetical: 括号内的表演指示（如"低声"、"愤怒"，无则为null）
+- emotion: 人物情绪状态（无则为null）
+
+已知角色：{characters}
+
+场景文本：
+---
+{scene_text}
+---
+
+请以 JSON 格式输出：
+{{"beats": [{{"type": "...", "character_id": "...", "character_text": "...", "content": "...", "parenthetical": "...", "emotion": "..."}}]}}
+"""
+
+# ---------------------------------------------------------------------------
+# Stage 2 fallback: Chapter detection when regex fails
+# ---------------------------------------------------------------------------
+
+CHAPTER_DETECT_PROMPT = """\
+你是一位专业的中文小说编辑。以下是一段小说文本的开头和结尾部分。
+请判断这段文本是否包含多个章节，如果是，请标注每个章节的起始位置。
+
+要求：
+- 识别"第X章"、"第X回"、"第X节"等章节标记
+- 如果没有明确标记，请根据叙事断裂点（如时间跳跃、场景大转换）来划分
+- 返回每个章节的标题和在文本中的大致位置（行号）
+
+小说文本（开头）：
+---
+{start_text}
+---
+
+小说文本（结尾）：
+---
+{end_text}
+---
+
+请以 JSON 格式输出：
+{{"chapters": [{{"title": "...", "line_start": 0}}]}}
+"""
