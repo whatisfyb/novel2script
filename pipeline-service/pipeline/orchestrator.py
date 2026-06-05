@@ -123,6 +123,7 @@ async def run_pipeline(
                     scene_text,
                     characters=structure.characters,
                     on_stream=_on_extract_chunk,
+                    chapter_text=chapter.text,
                 )
                 beats_by_scene[scene_key] = beats
                 logger.info("    Scene %s: %d beats", scene_key, len(beats))

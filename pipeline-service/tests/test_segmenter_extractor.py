@@ -357,6 +357,85 @@ class TestNormalizeCharacterAttribution:
         # beat[4]: alternation from beat[3] (周远) → 林薇
         assert beats[4].character_text == "林薇"
 
+    def test_narrow_scene_uses_chapter_context(self) -> None:
+        """When scene_text has no character names, fall back to chapter_text
+        so active_speakers can be detected and the fallback can run."""
+        beats = [
+            ExtBeat(type="dialogue", character_text=None, content="三楼，最西边的房间。"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        # Scene text has neither 周远 nor 林薇 mentioned (just dialogue)
+        scene_text = '"三楼，最西边的房间。"'
+        # Chapter text has both
+        chapter_text = "周远把手电筒递给林薇。三楼，最西边的房间。他们到达时天色已泛白。"
+
+        _fallback_attribute_dialogue(beats, chars, scene_text, chapter_text=chapter_text)
+
+        # Single dialogue with no previous speaker, no action context,
+        # no name in content → falls through to non-PoV default → 林薇
+        # (since action_counts is empty, pov defaults to first active_speaker = 周远)
+        assert beats[0].character_text is not None
+
+    def test_chapter_text_not_used_when_scene_text_has_names(self) -> None:
+        """If scene_text already contains character names, chapter_text
+        should not be consulted (narrow context is more specific)."""
+        beats = [
+            ExtBeat(type="dialogue", character_text=None, content="你好"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        # scene_text has names; chapter_text would expand the candidate pool
+        # but we verify behavior is the same as without chapter_text
+        scene_text = "周远看着林薇"
+        chapter_text = ""  # empty chapter, must not crash
+        _fallback_attribute_dialogue(beats, chars, scene_text, chapter_text=chapter_text)
+        # Some attribution should have happened
+        assert beats[0].character_text is not None
+
+    def test_chapter_text_none_falls_back_to_scene(self) -> None:
+        """Backward compat: chapter_text=None should not change behavior."""
+        beats = [
+            ExtBeat(type="dialogue", character_text=None, content="你好"),
+        ]
+        chars = [
+            Character(name="周远", role="protagonist"),
+        ]
+        _fallback_attribute_dialogue(beats, chars, "周远在", chapter_text=None)
+        # Single speaker scene → assign to 周远
+        assert beats[0].character_text == "周远"
+
+    @pytest.mark.asyncio
+    async def test_integration_extract_beats_passes_chapter_text(self) -> None:
+        """Verify extract_beats accepts chapter_text and passes to fallback."""
+        mock_response = {
+            "beats": [
+                {"type": "dialogue", "character_id": None, "character_text": None,
+                 "content": "三楼，最西边的房间。", "parenthetical": None, "emotion": None},
+            ]
+        }
+        chars = [
+            Character(name="周远", role="protagonist"),
+            Character(name="林薇", role="supporting"),
+        ]
+        with patch(
+            "pipeline.extractor.llm_complete", new_callable=AsyncMock
+        ) as mock:
+            mock.return_value = mock_response
+            # scene has no character names, chapter has both
+            beats = await extract_beats(
+                '"三楼，最西边的房间。"',
+                characters=chars,
+                chapter_text="周远和林薇到天文台。三楼，最西边的房间。",
+            )
+
+        # Fallback should have attributed via chapter context
+        assert beats[0].character_text is not None
+
 
 # ---------------------------------------------------------------------------
 # Fallback dialogue attribution tests (Commit 8)

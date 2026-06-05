@@ -115,6 +115,7 @@ def _fallback_attribute_dialogue(
     beats: list[Beat],
     characters: list,
     scene_text: str,
+    chapter_text: str | None = None,
 ) -> list[Beat]:
     """
     Post-LLM fallback: assign character_text to dialogue/voiceover beats
@@ -140,12 +141,19 @@ def _fallback_attribute_dialogue(
        attributed to the PoV character (the one with the most action beats).
 
     "Active speakers" = non-extra characters whose names appear in
-    scene_text. Extra/narrator-only characters are excluded.
+    scene_text (or chapter_text if provided). Extra/narrator-only
+    characters are excluded. The chapter_text fallback ensures that
+    scenes cut at points where character names are not present (e.g.,
+    a long continuous speech with no name repetition) still get
+    attribution: the surrounding chapter provides the speaker context.
 
     Args:
         beats: list of Beat objects from LLM output.
         characters: list of Character objects from Stage 3.
-        scene_text: the scene's source text for name-occurrence filtering.
+        scene_text: the scene's source text for primary name detection.
+        chapter_text: optional wider-context text (full chapter) used as
+            fallback for name-occurrence detection when scene_text does
+            not mention any active character by name.
 
     Returns:
         The same list (mutated in place) with character_text filled in
@@ -158,12 +166,27 @@ def _fallback_attribute_dialogue(
     # 0. Pre-pass: clear invalid/self-referencing character_text
     _normalize_character_attribution(beats, characters)
 
-    # 1. Determine active speakers: non-extra characters named in scene text.
+    # 1. Determine active speakers: non-extra characters whose names
+    #    appear in scene_text. If scene_text mentions no characters,
+    #    fall back to chapter_text (provides surrounding context).
+    name_source = scene_text
+    if chapter_text and not any(
+        getattr(c, "name", "") and getattr(c, "name", "") in scene_text
+        and getattr(c, "role", "extra") != "extra"
+        for c in characters
+    ):
+        # scene_text has no active character names → widen to chapter
+        name_source = chapter_text
+        logger.debug(
+            "Fallback: scene_text has no active character names; "
+            "using chapter_text for speaker detection"
+        )
+
     active_speakers: list[str] = []
     for c in characters:
         name = getattr(c, "name", "")
         role = getattr(c, "role", "extra")
-        if name and name in scene_text and role != "extra":
+        if name and name in name_source and role != "extra":
             active_speakers.append(name)
 
     if not active_speakers:
@@ -256,6 +279,7 @@ async def extract_beats(
     scene_text: str,
     characters: list | None = None,
     on_stream: StreamCallback | None = None,
+    chapter_text: str | None = None,
 ) -> list[Beat]:
     """
     Extract narrative beats from a single scene.
@@ -264,6 +288,11 @@ async def extract_beats(
         scene_text: the text content of the scene
         characters: list of Character objects from Stage 3 (for ID mapping)
         on_stream: optional async callback for streaming LLM tokens
+        chapter_text: optional wider-context text (full chapter). When
+            provided, the fallback attribution uses it to detect active
+            speakers even when scene_text itself contains no character
+            names (e.g., a long continuous speech that was cut into a
+            narrow scene segment).
 
     Returns:
         List of Beat objects forming the scene's narrative sequence.
@@ -304,6 +333,8 @@ async def extract_beats(
         )
 
     # Post-LLM fallback: fill in character_text for unowned dialogue beats
-    beats = _fallback_attribute_dialogue(beats, characters or [], scene_text)
+    beats = _fallback_attribute_dialogue(
+        beats, characters or [], scene_text, chapter_text=chapter_text
+    )
 
     return beats
