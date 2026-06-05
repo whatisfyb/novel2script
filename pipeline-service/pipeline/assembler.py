@@ -3,33 +3,84 @@ Stage 6: YAML Assembler — code-driven final assembly.
 
 Assembles all extracted data into a valid screenplay YAML:
   1. Build PyYAML data structure matching the schema
-  2. Normalize IDs (ensure cross-references are consistent)
-  3. Validate against JSON Schema (jsonschema)
+  2. Normalize IDs (sequential ASCII IDs for Chinese names — schema requires
+     pattern ^[a-z][a-z0-9_]*$ which Chinese characters cannot satisfy)
+  3. Validate against the authoritative JSON Schema in models/schema.yaml
+     (loaded once at module import; replaces the previous minimal stub)
   4. Serialize with PyYAML safe_dump (allow_unicode=True, sort_keys=False)
 """
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import yaml
 from jsonschema import ValidationError, validate
+
+logger = logging.getLogger(__name__)
 
 
 class SchemaValidationError(Exception):
     """Assembled YAML fails schema validation."""
 
 
-def _to_snake_case(name: str) -> str:
-    """Convert a name to snake_case ID: '林晓' → 'lin_xiao', 'Bob' → 'bob'."""
-    # For Chinese names: pinyin-style (fallback: just use the characters)
-    cleaned = re.sub(r"[^\w\s]", "", name).strip()
-    if not cleaned:
-        return "unknown"
-    # Simple approach: lowercase, replace spaces with underscores
-    return cleaned.lower().replace(" ", "_")
+# Load the authoritative schema once at module import time. This replaces
+# the previous minimal stub that only checked top-level keys; the real
+# schema enforces character/location ID patterns, enum values for scene
+# heading types/times, and other constraints that were previously silently
+# allowed through.
+_SCHEMA_PATH = Path(__file__).parent.parent / "models" / "schema.yaml"
+try:
+    with open(_SCHEMA_PATH, encoding="utf-8") as _f:
+        _SCREENPLAY_SCHEMA = yaml.safe_load(_f)
+except FileNotFoundError as e:
+    raise RuntimeError(
+        f"Screenplay schema not found at {_SCHEMA_PATH}. "
+        "This file is required for output validation."
+    ) from e
+
+
+# Pattern mirrored from models/schema.yaml — used to validate caller-provided
+# IDs before accepting them. If the caller's ID does not match, we generate a
+# fresh sequential ASCII ID instead.
+_ASCII_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def _make_ascii_id(prefix: str, index: int) -> str:
+    """
+    Generate a schema-compliant ASCII ID for a character or location.
+
+    The schema requires character.id and location.id to match
+    ^[a-z][a-z0-9_]*$. Chinese names cannot satisfy this directly; we
+    generate sequential IDs (c1, c2, ... for characters; l1, l2, ... for
+    locations) and preserve the original Chinese name in the `name` field.
+    """
+    return f"{prefix}{index}"
+
+
+def _resolve_id(
+    provided: str | None,
+    prefix: str,
+    seq: int,
+) -> str:
+    """
+    Pick a schema-valid ID, preferring caller-provided value if compatible.
+
+    Args:
+        provided: ID supplied by the caller (may be None or non-ASCII)
+        prefix: 'c' for characters, 'l' for locations
+        seq: 1-based sequence number used as fallback suffix
+
+    Returns:
+        Validated or generated ID matching ^[a-z][a-z0-9_]*$.
+    """
+    if provided and _ASCII_ID_PATTERN.match(provided):
+        return provided
+    return _make_ascii_id(prefix, seq)
 
 
 def assemble_yaml(
@@ -56,16 +107,18 @@ def assemble_yaml(
     Raises:
         SchemaValidationError: if assembled YAML fails schema validation
     """
-    # 1. Build character table with IDs (deduplicate by name)
+    # 1. Build character table with sequential ASCII IDs (deduplicate by name)
     char_table = []
     char_id_map: dict[str, str] = {}  # name → id
     seen_names: set = set()
-    for i, c in enumerate(characters):
+    char_seq = 0
+    for c in characters:
         name = c.get("name", "")
         if not name or name in seen_names:
             continue
         seen_names.add(name)
-        cid = c.get("id") or _to_snake_case(name)
+        char_seq += 1
+        cid = _resolve_id(c.get("id"), "c", char_seq)
         char_id_map[name] = cid
         char_table.append({
             "id": cid,
@@ -75,16 +128,18 @@ def assemble_yaml(
             "description": c.get("description", ""),
         })
 
-    # 2. Build location table with IDs (deduplicate by name)
+    # 2. Build location table with sequential ASCII IDs (deduplicate by name)
     loc_table = []
     loc_id_map: dict[str, str] = {}  # name → id
     seen_locs: set = set()
-    for i, l in enumerate(locations):
+    loc_seq = 0
+    for l in locations:
         name = l.get("name", "")
         if not name or name in seen_locs:
             continue
         seen_locs.add(name)
-        lid = l.get("id") or _to_snake_case(name)
+        loc_seq += 1
+        lid = _resolve_id(l.get("id"), "l", loc_seq)
         loc_id_map[name] = lid
         loc_table.append({
             "id": lid,
@@ -165,7 +220,7 @@ def assemble_yaml(
         ],
     }
 
-    # 5. Validate against schema
+    # 5. Validate against the authoritative schema
     _validate_doc(doc)
 
     # 6. Serialize to YAML
@@ -178,32 +233,8 @@ def assemble_yaml(
     )
 
 
-# Minimal structural schema for validation
-_SCREENPLAY_SCHEMA = {
-    "type": "object",
-    "required": ["meta", "characters", "locations", "acts"],
-    "properties": {
-        "meta": {"type": "object"},
-        "characters": {"type": "array"},
-        "locations": {"type": "array"},
-        "acts": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "required": ["id", "title", "scenes"],
-                "properties": {
-                    "id": {"type": "string"},
-                    "title": {"type": "string"},
-                    "scenes": {"type": "array"},
-                },
-            },
-        },
-    },
-}
-
-
 def _validate_doc(doc: dict) -> None:
-    """Validate assembled document against screenplay schema."""
+    """Validate assembled document against the authoritative screenplay schema."""
     try:
         validate(instance=doc, schema=_SCREENPLAY_SCHEMA)
     except ValidationError as e:
