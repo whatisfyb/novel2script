@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package novel.auth;
+
+option java_multiple_files = true;
+option java_package = "com.novel.auth.infrastructure.grpc.proto";
+option java_outer_classname = "AuthServiceProto";
+
+service AuthService {
+  rpc VerifyToken(VerifyTokenRequest) returns (VerifyTokenResponse);
+  rpc CheckQuota(CheckQuotaRequest) returns (CheckQuotaResponse);
+  rpc RecordUsage(RecordUsageRequest) returns (RecordUsageResponse);
+}
+
+message VerifyTokenRequest {
+  string token = 1;
+}
+
+message VerifyTokenResponse {
+  bool valid = 1;
+  string user_id = 2;
+  string username = 3;
+  int32 plan = 4;  // 0=free, 1=pro
+}
+
+message CheckQuotaRequest {
+  string user_id = 1;
+  string action = 2;  // "convert", "export"
+}
+
+message CheckQuotaResponse {
+  bool allowed = 1;
+  int32 remaining = 2;
+  string reset_at = 3;
+}
+
+message RecordUsageRequest {
+  string user_id = 1;
+  string action = 2;
+  int32 chapters_processed = 3;
+  int64 tokens_used = 4;
+}
+
+message RecordUsageResponse {
+  bool success = 1;
+}
