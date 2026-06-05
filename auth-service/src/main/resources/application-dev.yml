@@ -1,0 +1,15 @@
+# Dev profile — local development overrides
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/novel_auth
+    username: postgres
+    password: postgres
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+logging:
+  level:
+    com.novel.auth: DEBUG
+    org.springframework.web: DEBUG
