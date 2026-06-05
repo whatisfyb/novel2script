@@ -1,0 +1,209 @@
+# Novel-to-Script Screenplay YAML Schema v1.0.0
+# This is the authoritative schema for screenplay output validation.
+# See docs/yaml-schema.md for design rationale.
+
+"$schema": "https://json-schema.org/draft/2020-12/schema"
+title: Screenplay
+type: object
+required:
+  - meta
+  - characters
+  - locations
+  - acts
+properties:
+  meta:
+    type: object
+    required:
+      - title
+      - type
+      - language
+      - created_at
+      - source_chapters
+    properties:
+      title:
+        type: string
+      original_title:
+        type: string
+      author:
+        type: string
+      adapter:
+        type: string
+      type:
+        enum:
+          - movie
+          - tv
+          - short_video
+          - stage
+      language:
+        enum:
+          - zh
+          - en
+          - bilingual
+      created_at:
+        type: string
+        format: date-time
+      source_chapters:
+        type: integer
+        minimum: 1
+      synopsis:
+        type: string
+  characters:
+    type: array
+    items:
+      type: object
+      required:
+        - id
+        - name
+        - role
+      properties:
+        id:
+          type: string
+          pattern: "^[a-z][a-z0-9_]*$"
+        name:
+          type: string
+        aliases:
+          type: array
+          items:
+            type: string
+        role:
+          enum:
+            - protagonist
+            - supporting
+            - antagonist
+            - extra
+        description:
+          type: string
+        first_appearance:
+          type: integer
+          minimum: 1
+  locations:
+    type: array
+    items:
+      type: object
+      required:
+        - id
+        - name
+        - type
+      properties:
+        id:
+          type: string
+          pattern: "^[a-z][a-z0-9_]*$"
+        name:
+          type: string
+        type:
+          enum:
+            - indoor
+            - outdoor
+            - mixed
+            - virtual
+        description:
+          type: string
+  acts:
+    type: array
+    items:
+      type: object
+      required:
+        - id
+        - title
+        - scenes
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        chapters:
+          type: array
+          items:
+            type: integer
+        synopsis:
+          type: string
+        scenes:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - number
+              - heading
+              - beats
+            properties:
+              id:
+                type: string
+              act_id:
+                type: string
+              number:
+                type: integer
+              heading:
+                type: object
+                required:
+                  - location
+                  - time
+                  - type
+                properties:
+                  location:
+                    type: string
+                  time:
+                    enum:
+                      - day
+                      - night
+                      - dawn
+                      - dusk
+                      - continuous
+                  type:
+                    enum:
+                      - interior
+                      - exterior
+              description:
+                type: string
+              beats:
+                type: array
+                items:
+                  type: object
+                  required:
+                    - id
+                    - type
+                    - content
+                  properties:
+                    id:
+                      type: string
+                    type:
+                      enum:
+                        - action
+                        - dialogue
+                        - transition
+                        - voiceover
+                        - montage
+                        - shot
+                        - stage_direction
+                    character:
+                      type:
+                        - string
+                        - "null"
+                    content:
+                      type: string
+                    parenthetical:
+                      type:
+                        - string
+                        - "null"
+                    emotion:
+                      type:
+                        - string
+                        - "null"
+                    shot_type:
+                      type: string
+                    duration:
+                      type: string
+                    text_overlay:
+                      type:
+                        - string
+                        - "null"
+                    blocking:
+                      type: string
+                    lighting:
+                      type: string
+                    props:
+                      type: array
+                      items:
+                        type: string
+              notes:
+                type: string
