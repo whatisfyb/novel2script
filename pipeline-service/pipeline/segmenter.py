@@ -106,8 +106,91 @@ async def segment_scenes(
                 chapter_order=chapter.order,
             )
         )
-    # Post-process: split oversized scenes at sentence boundaries
+    # Post-process: snap boundaries to sentence endings, then split oversized
+    scenes = _snap_boundaries(scenes, chapter.text)
     scenes = _split_oversized_scenes(scenes, chapter.text)
+
+    return scenes
+
+
+def _snap_boundaries(scenes: list[Scene], chapter_text: str) -> list[Scene]:
+    """Snap scene boundaries to sentence-ending punctuation.
+
+    The LLM often places text_segment offsets mid-sentence. This pass
+    searches for the nearest 。！？\n around each boundary and snaps
+    both adjacent scenes to that position, preventing truncated content.
+
+    Also fills small gaps between adjacent scenes (unassigned text).
+    """
+    if len(scenes) <= 1:
+        return scenes
+
+    text = chapter_text
+    text_len = len(text)
+
+    # Process boundaries between adjacent scenes (same chapter)
+    for i in range(len(scenes) - 1):
+        cur = scenes[i]
+        nxt = scenes[i + 1]
+        if cur.chapter_order != nxt.chapter_order:
+            continue  # Different chapters, skip
+
+        boundary = nxt.text_segment[0]  # Start of next scene
+        # Also consider current scene's end
+        cur_end = cur.text_segment[1]
+
+        # Use the midpoint if there's a gap, otherwise use cur_end
+        snap_point = cur_end if cur_end <= boundary else boundary
+
+        # Don't snap if already at a sentence boundary
+        if snap_point > 0 and snap_point <= text_len and text[snap_point - 1] in "。！？\n":
+            # Align both scenes to this point
+            cur.text_segment = (cur.text_segment[0], snap_point)
+            nxt.text_segment = (snap_point, nxt.text_segment[1])
+            continue
+
+        # Search backward for nearest sentence end (within 80 chars)
+        backward_pos = -1
+        for j in range(snap_point, max(snap_point - 80, 0), -1):
+            if 0 < j <= text_len and text[j - 1] in "。！？\n":
+                backward_pos = j
+                break
+
+        # Search forward for nearest sentence end (within 80 chars)
+        forward_pos = -1
+        for j in range(snap_point, min(snap_point + 80, text_len)):
+            if j < text_len and text[j] in "。！？\n":
+                forward_pos = j + 1
+                break
+
+        # Choose: prefer backward (don't steal content from next scene)
+        # but only if it's not too far back (> 50% would lose too much)
+        chosen = snap_point  # default: no change
+        if backward_pos >= 0 and forward_pos >= 0:
+            back_dist = snap_point - backward_pos
+            fwd_dist = forward_pos - snap_point
+            chosen = backward_pos if back_dist <= fwd_dist else forward_pos
+        elif backward_pos >= 0:
+            back_dist = snap_point - backward_pos
+            if back_dist <= 50:  # Only snap backward if close
+                chosen = backward_pos
+        elif forward_pos >= 0:
+            fwd_dist = forward_pos - snap_point
+            if fwd_dist <= 50:  # Only snap forward if close
+                chosen = forward_pos
+
+        # Apply the snap
+        cur.text_segment = (cur.text_segment[0], chosen)
+        nxt.text_segment = (chosen, nxt.text_segment[1])
+
+    # Fill gaps: extend each scene's end to the next scene's start
+    for i in range(len(scenes) - 1):
+        if scenes[i].chapter_order != scenes[i + 1].chapter_order:
+            continue
+        cur_end = scenes[i].text_segment[1]
+        nxt_start = scenes[i + 1].text_segment[0]
+        if cur_end < nxt_start:
+            scenes[i].text_segment = (scenes[i].text_segment[0], nxt_start)
 
     return scenes
 
