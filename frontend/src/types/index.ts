@@ -169,3 +169,24 @@ export interface AuthResponse {
   token: string
   user: User
 }
+
+// History types
+export type ConversionStatus = 'completed' | 'processing' | 'failed'
+
+export interface HistoryRecord {
+  id: string
+  runId: string
+  userId?: string
+  filename: string
+  title: string
+  scriptType: ScriptType
+  language: Language
+  status: ConversionStatus
+  createdAt: string
+  chapters: number
+  acts: number
+  scenes: number
+  characters: number
+  yaml: string
+  error?: string
+}

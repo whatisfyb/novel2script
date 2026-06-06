@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Card, Typography, Space, Tag, Tooltip, Badge } from 'antd'
+import { Card, Typography, Tag, Tooltip, Badge } from 'antd'
 import {
   ApiOutlined, ClockCircleOutlined, PartitionOutlined,
   NodeIndexOutlined,
@@ -8,7 +8,7 @@ import type { FC } from 'react'
 import type { PipelineEvent } from '@/types'
 import { useSessionStore } from '@/stores/session'
 
-const { Text, Paragraph } = Typography
+const { Text } = Typography
 
 const SOURCE_META: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
   orchestrator:      { color: 'blue',   icon: <PartitionOutlined />,    label: '编排' },
@@ -57,12 +57,18 @@ const EventLog: FC<Props> = ({ maxHeight = 320 }) => {
     <Card
       className="!rounded-2xl !border-0 !shadow-sm"
       title={
-        <Space>
-          <Badge count={events.length} overflowCount={999} offset={[8, 0]}>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
             <Text strong>事件日志</Text>
-          </Badge>
+            <Badge
+              count={events.length}
+              overflowCount={999}
+              size="small"
+              style={{ backgroundColor: 'var(--accent-700)' }}
+            />
+          </div>
           <Text type="secondary" className="text-xs">Redis Stream 审计追踪</Text>
-        </Space>
+        </div>
       }
       size="small"
       styles={{ body: { padding: 0 } }}
@@ -81,13 +87,13 @@ const EventLog: FC<Props> = ({ maxHeight = 320 }) => {
             return (
               <div
                 key={e._id}
-                className="flex items-start gap-2 py-1.5 border-b border-gray-50 last:border-0"
+                className="flex items-start gap-2 py-2 border-b border-gray-50 last:border-0"
               >
                 <Tag color={meta.color} className="!text-xs !m-0 flex-shrink-0">
-                  <Space size={4}>
+                  <span className="inline-flex items-center gap-1">
                     {meta.icon}
                     {meta.label}
-                  </Space>
+                  </span>
                 </Tag>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2 flex-wrap">
@@ -99,12 +105,12 @@ const EventLog: FC<Props> = ({ maxHeight = 320 }) => {
                     )}
                   </div>
                   {summarizePayload(e) && (
-                    <Paragraph
-                      className="!mb-0 !mt-0.5 text-xs text-gray-500 truncate"
+                    <div
+                      className="text-xs text-gray-500 truncate leading-relaxed"
                       title={summarizePayload(e)}
                     >
                       {summarizePayload(e)}
-                    </Paragraph>
+                    </div>
                   )}
                 </div>
                 <Tooltip title={new Date(Number(e.ts) * 1000).toLocaleString('zh-CN')}>

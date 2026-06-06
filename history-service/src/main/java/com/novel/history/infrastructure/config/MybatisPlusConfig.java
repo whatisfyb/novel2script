@@ -1,4 +1,4 @@
-package com.novel.auth.infrastructure.config;
+package com.novel.history.infrastructure.config;
 
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
