@@ -48,6 +48,8 @@ interface SessionState {
   reset: () => void
 }
 
+const AUTH_API = 'http://localhost:8080'
+
 export const useSessionStore = create<SessionState>((set) => ({
   // Auth state
   user: null,
@@ -65,16 +67,41 @@ export const useSessionStore = create<SessionState>((set) => ({
   events: [],
   currentStage: null,
 
-  // Auth actions (mock implementation)
-  login: async (username, _password) => {
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    set({ user: { id: 'mock-user', username }, token: 'mock-token-' + Date.now() })
+  // Auth actions — real API calls to auth-service
+  login: async (username, password) => {
+    const res = await fetch(`${AUTH_API}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+    const json = await res.json()
+    if (json.code !== 200) {
+      throw new Error(json.message || '登录失败')
+    }
+    const { token, userInfo } = json.data
+    set({
+      token,
+      user: {
+        id: userInfo.userId,
+        username: userInfo.username,
+        email: userInfo.email,
+      },
+    })
   },
-  register: async (username, email, _password) => {
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    set({ user: { id: 'mock-user', username, email }, token: 'mock-token-' + Date.now() })
+  register: async (username, email, password) => {
+    const res = await fetch(`${AUTH_API}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email, password }),
+    })
+    const json = await res.json()
+    if (json.code !== 200) {
+      throw new Error(json.message || '注册失败')
+    }
   },
   logout: () => {
+    // Call backend logout (fire-and-forget)
+    fetch(`${AUTH_API}/api/auth/logout`, { method: 'POST' }).catch(() => {})
     set({
       user: null,
       token: null,
