@@ -159,6 +159,7 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
             characters = struct_data["characters"]
             locations = struct_data["locations"]
             scenes_by_chapter = struct_data["scenes_by_chapter"]
+            synopsis = struct_data.get("synopsis", "")
             n_scenes = sum(len(s) for s in scenes_by_chapter.values())
             await store.append_event(
                 run_id=run_id, event_type="stage.structure.done",
@@ -173,8 +174,9 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
             all_scenes: list[dict] = []
             for chapter_order, scene_list in scenes_by_chapter.items():
                 # Find the matching chapter text
+                # NOTE: chapter_order is str from JSON dict keys, c["order"] is int
                 chapter_text = next(
-                    (c["text"] for c in chapters if c["order"] == chapter_order),
+                    (c["text"] for c in chapters if c["order"] == int(chapter_order)),
                     None,
                 )
                 for idx, scene in enumerate(scene_list, start=1):
@@ -249,6 +251,8 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
                     "title": filename.rsplit(".", 1)[0],
                     "type": "tv",
                     "language": "zh",
+                    "source_chapters": len(chapters),
+                    "synopsis": synopsis,
                 },
                 characters=characters,
                 locations=locations,
