@@ -70,7 +70,7 @@ def assemble_yaml(
         char_table.append({
             "id": cid,
             "name": name,
-            "aliases": c.get("aliases", []),
+            "aliases": c.get("aliases") or [],
             "role": c.get("role", "extra"),
             "description": c.get("description", ""),
         })

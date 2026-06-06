@@ -15,7 +15,10 @@ ANALYZE_STRUCTURE_PROMPT = """\
 1. **synopsis**: 故事梗概（不超过200字）
 2. **characters**: 所有出场人物列表
    - name: 标准姓名（中文名用汉字，如"林晓"）
-   - aliases: 文中出现的其他称呼（如"汪教授"、"老王"）
+   - aliases: 文中出现的其他称呼，包括：
+     * 昵称/外号（如"老王"、"汪教授"）
+     * 关系称谓（如"妻子"、"丈夫"、"母亲"）
+     **重要规则**：如果角色A被称为"妻子"（相对于角色B），则角色B的aliases中必须包含"丈夫"。关系称谓必须双向对应。
    - role: 主角/配角/反派/龙套（protagonist/supporting/antagonist/extra）
    - description: 一句话人物描述
 3. **locations**: 所有场景地点列表

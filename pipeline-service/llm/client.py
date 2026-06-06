@@ -14,6 +14,10 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import litellm
+from dotenv import load_dotenv
+
+# Load .env file at module import time
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
