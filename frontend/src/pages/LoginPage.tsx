@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { Card, Tabs, Form, Input, Button, Typography, message } from 'antd'
+import { Button, Card, Form, Input, Tabs, Typography, message } from 'antd'
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons'
+import { useState } from 'react'
 import { useSessionStore } from '@/stores/session'
 
 const { Title, Text } = Typography
@@ -35,16 +35,55 @@ function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        {/* Brand header */}
+    <div
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{
+        backgroundColor: 'var(--bg-primary)',
+      }}
+    >
+      <div className="w-full max-w-md fade-up">
+        {/* Brand — editorial style */}
         <div className="text-center mb-8">
-          <Title level={2} className="!mb-2 !text-gray-800">AI 小说转剧本</Title>
-          <Text className="text-gray-400">上传小说 · 智能分析 · 生成专业剧本</Text>
+          <svg width="40" height="40" viewBox="0 0 32 32" fill="none" className="mx-auto mb-4">
+            <rect x="3" y="6" width="26" height="20" rx="2" stroke="#1c1917" strokeWidth="2" fill="none" />
+            <rect x="6" y="9" width="20" height="14" rx="1" fill="#b45309" />
+            <circle cx="16" cy="16" r="3" fill="#fef3c7" />
+            <circle cx="16" cy="16" r="1.5" fill="#1c1917" />
+          </svg>
+          <Title
+            level={2}
+            style={{
+              fontFamily: 'var(--font-display)',
+              color: 'var(--ink-900)',
+              fontWeight: 700,
+              marginBottom: 4,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            Novel<span style={{ color: 'var(--accent-700)' }}>2</span>Script
+          </Title>
+          <Text
+            style={{
+              color: 'var(--ink-500)',
+              fontSize: 13,
+              letterSpacing: '0.05em',
+            }}
+          >
+            上传小说 · 智能分析 · 生成剧本
+          </Text>
         </div>
 
-        {/* Card */}
-        <Card className="shadow-sm border border-gray-100 !rounded-xl" styles={{ body: { padding: '32px' } }}>
+        {/* Card — minimal border, warm shadow */}
+        <Card
+          className="fade-up fade-up-delay-1"
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 10,
+            boxShadow: 'var(--shadow-md)',
+          }}
+          styles={{ body: { padding: 32 } }}
+        >
           <Tabs
             activeKey={activeTab}
             onChange={setActiveTab}
@@ -57,13 +96,27 @@ function LoginPage() {
                 children: (
                   <Form onFinish={handleLogin} layout="vertical" size="large">
                     <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}>
-                      <Input prefix={<UserOutlined className="text-gray-400" />} placeholder="用户名" />
+                      <Input
+                        prefix={<UserOutlined style={{ color: 'var(--ink-300)' }} />}
+                        placeholder="用户名"
+                        style={{ height: 44 }}
+                      />
                     </Form.Item>
                     <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
-                      <Input.Password prefix={<LockOutlined className="text-gray-400" />} placeholder="密码" />
+                      <Input.Password
+                        prefix={<LockOutlined style={{ color: 'var(--ink-300)' }} />}
+                        placeholder="密码"
+                        style={{ height: 44 }}
+                      />
                     </Form.Item>
                     <Form.Item className="!mb-0">
-                      <Button type="primary" htmlType="submit" loading={loading} block size="large">
+                      <Button
+                        type="primary"
+                        htmlType="submit"
+                        loading={loading}
+                        block
+                        size="large"
+                      >
                         登 录
                       </Button>
                     </Form.Item>
@@ -76,19 +129,31 @@ function LoginPage() {
                 children: (
                   <Form onFinish={handleRegister} layout="vertical" size="large">
                     <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}>
-                      <Input prefix={<UserOutlined className="text-gray-400" />} placeholder="用户名" />
+                      <Input
+                        prefix={<UserOutlined style={{ color: 'var(--ink-300)' }} />}
+                        placeholder="用户名"
+                        style={{ height: 44 }}
+                      />
                     </Form.Item>
                     <Form.Item name="email" rules={[
                       { required: true, message: '请输入邮箱' },
-                      { type: 'email', message: '邮箱格式不正确' },
+                      { type: 'email' as const, message: '邮箱格式不正确' },
                     ]}>
-                      <Input prefix={<MailOutlined className="text-gray-400" />} placeholder="邮箱" />
+                      <Input
+                        prefix={<MailOutlined style={{ color: 'var(--ink-300)' }} />}
+                        placeholder="邮箱"
+                        style={{ height: 44 }}
+                      />
                     </Form.Item>
                     <Form.Item name="password" rules={[
                       { required: true, message: '请输入密码' },
                       { min: 6, message: '密码至少6位' },
                     ]}>
-                      <Input.Password prefix={<LockOutlined className="text-gray-400" />} placeholder="密码" />
+                      <Input.Password
+                        prefix={<LockOutlined style={{ color: 'var(--ink-300)' }} />}
+                        placeholder="密码"
+                        style={{ height: 44 }}
+                      />
                     </Form.Item>
                     <Form.Item name="confirmPassword" dependencies={['password']} rules={[
                       { required: true, message: '请确认密码' },
@@ -99,10 +164,20 @@ function LoginPage() {
                         },
                       }),
                     ]}>
-                      <Input.Password prefix={<LockOutlined className="text-gray-400" />} placeholder="确认密码" />
+                      <Input.Password
+                        prefix={<LockOutlined style={{ color: 'var(--ink-300)' }} />}
+                        placeholder="确认密码"
+                        style={{ height: 44 }}
+                      />
                     </Form.Item>
                     <Form.Item className="!mb-0">
-                      <Button type="primary" htmlType="submit" loading={loading} block size="large">
+                      <Button
+                        type="primary"
+                        htmlType="submit"
+                        loading={loading}
+                        block
+                        size="large"
+                      >
                         注 册
                       </Button>
                     </Form.Item>
@@ -113,10 +188,18 @@ function LoginPage() {
           />
         </Card>
 
-        {/* Footer */}
-        <Text className="block text-center mt-6 text-gray-300 text-sm">
-          Novel-to-Script · Powered by AI
-        </Text>
+        {/* Footer note */}
+        <div className="text-center mt-6 fade-up fade-up-delay-2">
+          <Text
+            style={{
+              fontSize: 12,
+              color: 'var(--ink-500)',
+              letterSpacing: '0.05em',
+            }}
+          >
+            内部项目 · 仅限授权使用
+          </Text>
+        </div>
       </div>
     </div>
   )

@@ -1,28 +1,43 @@
-import { useState, useCallback } from 'react'
-import { Button, Typography, message, Card, Row, Col } from 'antd'
+import { Button, Col, Row, Typography, message } from 'antd'
 import {
-  RocketOutlined, FileTextOutlined, SplitCellsOutlined,
+  RocketOutlined,
+  FileTextOutlined,
+  ThunderboltOutlined,
   ApartmentOutlined,
 } from '@ant-design/icons'
 import type { FC } from 'react'
+import { useCallback, useState } from 'react'
+import { useSessionStore } from '@/stores/session'
+import { uploadFile } from '@/services/api'
 import FileUploader from '@/components/FileUploader'
 import SettingsPanel from '@/components/SettingsPanel'
-import { useSessionStore } from '@/stores/session'
 import type { ConversionSettings } from '@/types'
 
 const { Title, Text } = Typography
 
+const features = [
+  {
+    icon: <FileTextOutlined />,
+    title: '多格式解析',
+    desc: '支持 .txt / .md / .docx 小说文本上传',
+  },
+  {
+    icon: <ThunderboltOutlined />,
+    title: '智能结构分析',
+    desc: 'AI 自动识别人物、场景、对话节拍',
+  },
+  {
+    icon: <ApartmentOutlined />,
+    title: '结构化输出',
+    desc: '标准 YAML 格式，可编辑可导出',
+  },
+]
+
 interface Props {
   settings: ConversionSettings
-  onSettingsChange: (settings: ConversionSettings) => void
+  onSettingsChange: (s: ConversionSettings) => void
   onStart: () => void
 }
-
-const features = [
-  { icon: <FileTextOutlined />, title: '智能解析', desc: '自动识别章节、人物、场景结构' },
-  { icon: <SplitCellsOutlined />, title: '场景分割', desc: '精准切分每个场景与对话节拍' },
-  { icon: <ApartmentOutlined />, title: '结构化输出', desc: '标准 YAML 格式，可编辑可导出' },
-]
 
 const UploadPage: FC<Props> = ({ settings, onSettingsChange, onStart }) => {
   const { setFile } = useSessionStore()
@@ -52,51 +67,131 @@ const UploadPage: FC<Props> = ({ settings, onSettingsChange, onStart }) => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4" style={{ minHeight: 'calc(100vh - 120px)' }}>
-      {/* Hero section */}
-      <div className="text-center pt-12 pb-8">
-        <Title className="!text-4xl !font-bold !mb-3 !text-gray-800">
-          AI 小说转剧本
+    <div
+      className="max-w-4xl mx-auto px-6"
+      style={{ minHeight: 'calc(100vh - 120px)' }}
+    >
+      {/* Hero — editorial style */}
+      <div className="text-center pt-16 pb-10 fade-up">
+        <div
+          className="inline-block mb-4 px-3 py-1 text-xs tracking-widest uppercase"
+          style={{
+            backgroundColor: 'var(--accent-100)',
+            color: 'var(--accent-700)',
+            borderRadius: 3,
+            fontWeight: 600,
+            letterSpacing: '0.1em',
+          }}
+        >
+          AI · Screenplay Pipeline
+        </div>
+        <Title
+          level={1}
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '2.75rem',
+            fontWeight: 700,
+            color: 'var(--ink-900)',
+            marginBottom: 12,
+            lineHeight: 1.15,
+            letterSpacing: '-0.02em',
+          }}
+        >
+          把小说变成
+          <span style={{ color: 'var(--accent-700)', fontStyle: 'italic' }}> 剧本</span>
         </Title>
-        <Text className="text-gray-500 text-lg">
-          上传小说文本，AI 自动分析并转换为结构化 YAML 剧本
+        <Text
+          style={{
+            fontSize: 17,
+            color: 'var(--ink-500)',
+            fontFamily: 'var(--font-body)',
+          }}
+        >
+          上传小说文本，AI 自动分析结构、提取角色与场景
+          <br />
+          生成专业 YAML 格式剧本
         </Text>
       </div>
 
-      {/* Feature cards */}
-      <Row gutter={16} className="mb-8">
+      {/* Feature cards — minimal, border-focused */}
+      <Row gutter={[20, 20]} className="mb-10 fade-up fade-up-delay-1">
         {features.map((f) => (
           <Col key={f.title} span={8}>
-            <Card
-              className="text-center border-0 shadow-sm hover:shadow-md transition-shadow !rounded-xl h-full"
-              styles={{ body: { padding: '24px 16px' } }}
+            <div
+              className="surface-card p-6 h-full"
+              style={{ borderRadius: 8 }}
             >
-              <div className="text-3xl text-indigo-500 mb-3">{f.icon}</div>
-              <Text strong className="block mb-1">{f.title}</Text>
-              <Text type="secondary" className="text-sm">{f.desc}</Text>
-            </Card>
+              <div className="mb-4 flex items-center gap-2">
+                <span
+                  className="text-xl"
+                  style={{ color: 'var(--accent-700)' }}
+                >
+                  {f.icon}
+                </span>
+                <span className="accent-dot" />
+              </div>
+              <Text
+                strong
+                style={{
+                  display: 'block',
+                  marginBottom: 6,
+                  fontSize: 15,
+                  color: 'var(--ink-900)',
+                }}
+              >
+                {f.title}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: 'var(--ink-500)',
+                  lineHeight: 1.6,
+                }}
+              >
+                {f.desc}
+              </Text>
+            </div>
           </Col>
         ))}
       </Row>
 
       {/* Upload area */}
-      <FileUploader onFileSelected={handleFileSelected} />
+      <div className="fade-up fade-up-delay-2">
+        <FileUploader onFileSelected={handleFileSelected} />
+      </div>
 
       {/* Settings */}
-      <SettingsPanel settings={settings} onChange={onSettingsChange} />
+      <div className="fade-up fade-up-delay-2">
+        <SettingsPanel settings={settings} onChange={onSettingsChange} />
+      </div>
 
-      {/* CTA */}
-      <div className="text-center mt-8 pb-16">
+      {/* CTA — prominent, warm */}
+      <div className="text-center mt-10 pb-16 fade-up fade-up-delay-3">
         <Button
-          type="primary"
           size="large"
           icon={<RocketOutlined />}
           loading={loading}
           onClick={handleStart}
-          className="!h-12 !px-10 !text-lg !rounded-xl !shadow-sm hover:!shadow-md !font-medium"
+          style={{
+            height: 52,
+            paddingInline: 40,
+            fontSize: 16,
+            fontWeight: 600,
+            borderRadius: 8,
+            backgroundColor: 'var(--ink-900)',
+            borderColor: 'var(--ink-900)',
+            color: '#fff',
+            boxShadow: '0 4px 16px rgba(28, 25, 23, 0.15)',
+          }}
         >
           开始转换
         </Button>
+        <div
+          className="mt-4 text-xs"
+          style={{ color: 'var(--ink-500)', letterSpacing: '0.05em' }}
+        >
+          转换过程约 2-5 分钟 · 支持 WebSocket 实时进度
+        </div>
       </div>
     </div>
   )

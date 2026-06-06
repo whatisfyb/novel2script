@@ -1,5 +1,5 @@
 import { Button, Space, Typography, Dropdown } from 'antd'
-import { LogoutOutlined, UserOutlined, BookOutlined } from '@ant-design/icons'
+import { LogoutOutlined, UserOutlined } from '@ant-design/icons'
 import { useSessionStore } from '@/stores/session'
 
 const { Text } = Typography
@@ -14,20 +14,62 @@ function AppHeader() {
   }
 
   return (
-    <header className="bg-white border-b border-gray-200">
+    <header
+      className="border-b"
+      style={{
+        backgroundColor: 'var(--bg-header)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        borderColor: 'var(--border-color)',
+      }}
+    >
       <div className="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between">
-        <Space size="middle">
-          <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
-            <BookOutlined className="text-indigo-600 text-lg" />
-          </div>
-          <div>
-            <Text strong className="text-gray-800 text-lg tracking-wide">AI 小说转剧本</Text>
-            <Text className="text-gray-400 text-xs block -mt-0.5">Novel → Screenplay</Text>
+        <Space size="middle" align="center">
+          {/* Logo mark */}
+          <div className="flex items-center gap-3">
+            <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+              <rect x="3" y="6" width="26" height="20" rx="2" stroke="#1c1917" strokeWidth="2" fill="none" />
+              <rect x="6" y="9" width="20" height="14" rx="1" fill="#b45309" />
+              <circle cx="16" cy="16" r="3" fill="#fef3c7" />
+              <circle cx="16" cy="16" r="1.5" fill="#1c1917" />
+            </svg>
+            <div>
+              <Text
+                strong
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 18,
+                  color: 'var(--ink-900)',
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                Novel<span style={{ color: 'var(--accent-700)' }}>2</span>Script
+              </Text>
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: 'var(--ink-500)',
+                  display: 'block',
+                  marginTop: -2,
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                小说 · 剧本
+              </Text>
+            </div>
           </div>
         </Space>
 
         <Dropdown menu={userMenu} placement="bottomRight" trigger={['click']}>
-          <Button type="text" className="text-gray-600 hover:text-indigo-600 hover:bg-indigo-50" icon={<UserOutlined />}>
+          <Button
+            type="text"
+            icon={<UserOutlined />}
+            style={{
+              color: 'var(--ink-700)',
+              fontWeight: 500,
+            }}
+          >
             {user?.username}
           </Button>
         </Dropdown>

@@ -1,8 +1,13 @@
-import { Card, Typography, Space, Tag, Collapse } from 'antd'
+import { Typography, Space, Collapse } from 'antd'
 import {
-  LoadingOutlined, CheckCircleFilled,
-  FileSearchOutlined, SplitCellsOutlined, UserSwitchOutlined,
-  ApartmentOutlined, ThunderboltOutlined, BuildOutlined,
+  LoadingOutlined,
+  CheckCircleFilled,
+  FileSearchOutlined,
+  SplitCellsOutlined,
+  UserSwitchOutlined,
+  ApartmentOutlined,
+  ThunderboltOutlined,
+  BuildOutlined,
   BulbOutlined,
 } from '@ant-design/icons'
 import type { FC, ReactNode } from 'react'
@@ -49,113 +54,186 @@ const ProgressBar: FC<Props> = ({ progress }) => {
 
   return (
     <div className="max-w-xl mx-auto">
-      {/* Progress bar */}
-      <Card className="!rounded-2xl !border-0 !shadow-sm mb-4" styles={{ body: { padding: '24px' } }}>
+      {/* Progress card */}
+      <div
+        className="mb-4 p-6"
+        style={{
+          backgroundColor: 'var(--bg-card)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 10,
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
         <div className="text-center mb-6">
           {isDone ? (
             <Space size="middle">
-              <CheckCircleFilled className="text-4xl text-green-500" />
-              <Title level={3} className="!mb-0 !text-green-600">转换完成！</Title>
+              <CheckCircleFilled style={{ fontSize: 32, color: 'var(--accent-700)' }} />
+              <Title
+                level={3}
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  color: 'var(--accent-700)',
+                  marginBottom: 0,
+                }}
+              >
+                转换完成
+              </Title>
             </Space>
           ) : (
             <Space size="middle">
-              <LoadingOutlined className="text-4xl text-indigo-500" spin />
-              <Title level={3} className="!mb-0 !text-gray-700">正在转换...</Title>
+              <LoadingOutlined style={{ fontSize: 32, color: 'var(--ink-900)' }} spin />
+              <Title
+                level={3}
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  color: 'var(--ink-900)',
+                  marginBottom: 0,
+                }}
+              >
+                正在转换...
+              </Title>
             </Space>
           )}
         </div>
 
-        {/* Animated progress bar with gradient */}
-        <div className="relative w-full h-3 bg-gray-100 rounded-full overflow-hidden mb-4">
+        {/* Progress bar — solid ink, no gradient */}
+        <div
+          className="relative w-full rounded-full overflow-hidden mb-4"
+          style={{
+            height: 6,
+            backgroundColor: 'var(--ink-100)',
+          }}
+        >
           <div
-            className="absolute top-0 left-0 h-full rounded-full bg-indigo-500 transition-all duration-700 ease-out"
-            style={{ width: `${percentage}%` }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              height: '100%',
+              borderRadius: 9999,
+              backgroundColor: 'var(--ink-900)',
+              transition: 'width 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+              width: `${percentage}%`,
+            }}
           />
-          {/* Shimmer animation while processing */}
-          {!isDone && percentage > 0 && (
-            <div
-              className="absolute top-0 left-0 h-full w-16 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-              style={{ left: `${Math.max(0, percentage - 10)}%` }}
-            />
-          )}
         </div>
 
         <div className="flex justify-between text-sm">
-          <Text className="text-indigo-600 font-medium">{message}</Text>
-          <Text className="text-gray-400 font-mono">{percentage}%</Text>
+          <Text style={{ color: 'var(--accent-700)', fontWeight: 500 }}>{message}</Text>
+          <Text
+            style={{
+              color: 'var(--ink-500)',
+              fontFamily: 'var(--font-mono)',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {percentage}%
+          </Text>
         </div>
-      </Card>
+      </div>
 
       {/* Stage timeline (6 stages) */}
-      <Card className="!rounded-2xl !border-0 !shadow-sm" styles={{ body: { padding: '20px 24px' } }}>
+      <div
+        className="p-6"
+        style={{
+          backgroundColor: 'var(--bg-card)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 10,
+          boxShadow: 'var(--shadow-xs)',
+        }}
+      >
         <div className="space-y-0">
           {STAGES.map((stage, idx) => {
             const isActive = idx === stageIndex && !isDone
             const isComplete = (idx < stageIndex) || (isDone && idx === STAGES.length - 1)
-            const isPending = idx > stageIndex && !isDone
 
             return (
               <div key={stage.key} className="flex items-start gap-3 py-2.5">
                 {/* Icon with status */}
                 <div className="flex flex-col items-center">
-                  <div className={`
-                    w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0
-                    transition-all duration-500
-                    ${isComplete ? 'bg-green-100 text-green-600' : ''}
-                    ${isActive ? 'bg-indigo-100 text-indigo-600 ring-2 ring-indigo-300 ring-offset-2 animate-pulse' : ''}
-                    ${isPending ? 'bg-gray-100 text-gray-300' : ''}
-                  `}>
-                    {isComplete ? <CheckCircleFilled className="text-lg" /> : (
-                      isActive ? <LoadingOutlined className="text-lg" spin /> : stage.icon
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      transition: 'all 0.4s ease',
+                      backgroundColor: 'var(--ink-100)',
+                      color: isComplete
+                        ? 'var(--accent-700)'
+                        : isActive
+                          ? 'var(--ink-900)'
+                          : 'var(--ink-300)',
+                      ...(isComplete ? { backgroundColor: 'var(--accent-100)' } : {}),
+                      ...(isActive ? { boxShadow: '0 0 0 3px var(--bg-primary), 0 0 0 5px var(--ink-300)' } : {}),
+                    }}
+                  >
+                    {isComplete ? (
+                      <CheckCircleFilled style={{ fontSize: 14 }} />
+                    ) : isActive ? (
+                      <LoadingOutlined style={{ fontSize: 14 }} spin />
+                    ) : (
+                      stage.icon
                     )}
                   </div>
-                  {/* Connector line (except last) */}
+                  {/* Connector line */}
                   {idx < STAGES.length - 1 && (
-                    <div className={`
-                      w-0.5 h-6 my-1
-                      ${isComplete ? 'bg-green-300' : 'bg-gray-200'}
-                      transition-colors duration-500
-                    `} />
+                    <div
+                      style={{
+                        width: 1.5,
+                        height: 24,
+                        marginTop: 4,
+                        marginBottom: 4,
+                        backgroundColor: isComplete ? 'var(--accent-500)' : 'var(--ink-100)',
+                        transition: 'background-color 0.3s ease',
+                      }}
+                    />
                   )}
                 </div>
 
-                {/* Label */}
-                <div className="flex-1 pt-1">
+                {/* Label + status */}
+                <div className="flex-1 pt-1.5">
                   <Text
-                    className={`
-                      ${isComplete ? 'text-green-600' : ''}
-                      ${isActive ? 'text-indigo-600 font-semibold' : ''}
-                      ${isPending ? 'text-gray-300' : ''}
-                      transition-colors duration-500
-                    `}
+                    style={{
+                      fontSize: 13,
+                      fontWeight: isComplete || isActive ? 600 : 400,
+                      color: isComplete || isActive ? 'var(--ink-900)' : 'var(--ink-300)',
+                      transition: 'color 0.3s ease',
+                    }}
                   >
                     {stage.label}
                   </Text>
-                  {isActive && (
-                    <Text type="secondary" className="block text-xs mt-0.5">
+                  {isActive && message && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--ink-500)',
+                        marginTop: 2,
+                      }}
+                    >
                       {message}
-                    </Text>
+                    </div>
                   )}
-                </div>
-
-                {/* Status badge */}
-                <div className="pt-1">
-                  {isComplete && <Tag color="success" className="!text-xs">完成</Tag>}
-                  {isActive && <Tag color="processing" className="!text-xs">进行中</Tag>}
-                  {isPending && <Tag className="!text-xs !text-gray-300 !border-gray-200">等待</Tag>}
                 </div>
               </div>
             )
           })}
         </div>
-      </Card>
+      </div>
 
-      {/* AI Thinking panel — shows streaming LLM tokens */}
+      {/* AI Thinking panel */}
       {thinking && !isDone && (
-        <Card
-          className="!rounded-2xl !border-0 !shadow-sm mt-4"
-          size="small"
-          styles={{ body: { padding: '12px 16px' } }}
+        <div
+          className="mt-4 px-4 py-3"
+          style={{
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 10,
+            boxShadow: 'var(--shadow-xs)',
+          }}
         >
           <Collapse
             ghost
@@ -164,21 +242,33 @@ const ProgressBar: FC<Props> = ({ progress }) => {
               key: 'thinking',
               label: (
                 <Space size={4}>
-                  <BulbOutlined className="text-amber-500" />
-                  <Text className="text-gray-500 text-sm">AI 思考中...</Text>
-                  <Text type="secondary" className="text-xs">({thinking.length} 字)</Text>
+                  <BulbOutlined style={{ color: 'var(--accent-500)' }} />
+                  <Text style={{ color: 'var(--ink-500)', fontSize: 13 }}>
+                    AI 思考中...
+                  </Text>
+                  <Text style={{ fontSize: 11, color: 'var(--ink-300)' }}>
+                    ({thinking.length} 字)
+                  </Text>
                 </Space>
               ),
               children: (
                 <Paragraph
-                  className="!mb-0 text-gray-500 text-sm whitespace-pre-wrap max-h-40 overflow-y-auto font-mono"
+                  style={{
+                    marginBottom: 0,
+                    color: 'var(--ink-500)',
+                    fontSize: 12,
+                    fontFamily: 'var(--font-mono)',
+                    whiteSpace: 'pre-wrap',
+                    maxHeight: 160,
+                    overflowY: 'auto',
+                  }}
                 >
                   {thinking}
                 </Paragraph>
               ),
             }]}
           />
-        </Card>
+        </div>
       )}
     </div>
   )
