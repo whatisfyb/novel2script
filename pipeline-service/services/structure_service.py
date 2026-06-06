@@ -198,8 +198,10 @@ async def segment_endpoint(req: SegmentRequest) -> SegmentResponse:
         )
 
     chapters = [_chapter_to_internal(c) for c in req.chapters]
-    characters_internal = [c.model_dump() for c in req.characters]
-    locations_internal = [l.model_dump() for l in req.locations]
+    # Pass Pydantic models directly — they have .name/.role/.type attribute access
+    # that segment_scenes requires (don't .model_dump() which would lose attrs)
+    characters_internal = list(req.characters)
+    locations_internal = list(req.locations)
 
     # Segment per chapter in parallel
     async def segment_one(ch) -> tuple[int, list]:

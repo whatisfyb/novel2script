@@ -13,7 +13,7 @@ Runs per-chapter in parallel for throughput.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from llm.client import llm_complete
 from llm.prompts import SEGMENT_SCENES_PROMPT
@@ -24,12 +24,15 @@ from llm.schemas import SEGMENT_SCHEMA
 class Scene:
     """A scene identified within a chapter."""
 
-    location: str
-    time: str  # day, night, dawn, dusk, continuous
-    type: str  # interior, exterior
-    description: str
-    text_segment: tuple[int, int]  # (start_offset, end_offset) into chapter text
-    chapter_order: int
+    id: str = ""
+    number: int = 0
+    heading: dict = field(default_factory=dict)
+    location: str = ""
+    time: str = "continuous"  # day, night, dawn, dusk, continuous
+    type: str = "interior"    # interior, exterior
+    description: str = ""
+    text_segment: tuple[int, int] = (0, 0)  # (start_offset, end_offset) into chapter text
+    chapter_order: int = 0
 
 
 async def segment_scenes(
@@ -68,10 +71,17 @@ async def segment_scenes(
     data = await llm_complete(prompt, schema=SEGMENT_SCHEMA)
 
     scenes = []
-    for s in data.get("scenes", []):
+    for idx, s in enumerate(data.get("scenes", []), start=1):
         seg = s.get("text_segment", [0, 0])
         scenes.append(
             Scene(
+                id=f"ch{chapter.order}_s{idx}",
+                number=idx,
+                heading={
+                    "location": s.get("location", "未知"),
+                    "time": s.get("time", "continuous"),
+                    "type": s.get("type", "interior"),
+                },
                 location=s.get("location", "未知"),
                 time=s.get("time", "continuous"),
                 type=s.get("type", "interior"),
