@@ -69,10 +69,10 @@ EXTRACT_BEATS_PROMPT = """\
 你是一位专业的剧本节拍提取师。请阅读以下场景文本，提取每一个叙事节拍（beat）。
 
 节拍类型：
-- action: 人物动作描写
-- dialogue: 对话（含说话人）
-- transition: 场景转换
-- voiceover: 旁白/内心独白
+- action: 人物动作描写（如"他站起来"、"她拿起杯子"）
+- dialogue: 对话（含说话人，如"你好"、"他说"）
+- transition: 场景转换（如"第二天早上"、"三小时后"）
+- voiceover: 仅限内心独白（如"他心里想"、"她暗自思忖"）
 - montage: 蒙太奇段落
 
 每个节拍需要标注：
@@ -82,6 +82,27 @@ EXTRACT_BEATS_PROMPT = """\
 - content: 节拍内容（精简后的剧本语言）
 - parenthetical: 括号内的表演指示（如"低声"、"愤怒"，无则为null）
 - emotion: 人物情绪状态（无则为null）
+
+【关键规则 — 必须严格遵守】
+
+1. **电话对话归属**：
+   - 如果场景中有"电话那头"、"来电"、"接听"等关键词，说明是电话场景
+   - 电话对白属于**打电话的人**（电话另一端），**不是**接电话的人
+   - 例："周远，是我。" → 说话人是**林薇**（打电话的人），不是周远（接电话的人）
+
+2. **voiceover 定义**：
+   - voiceover **仅限**内心独白（"他心里想"、"她暗自思忖"、"他回忆起"）
+   - 叙述性文字（如"老君山天文台在海拔两千四百米"）应归 **transition** 或 **action**
+   - 不要把场景描述、背景介绍标为 voiceover
+
+3. **主语推断**：
+   - 如果动作缺少主语，从上下文推断
+   - 例："自己拿了一根撬棍" → 主语是前一个动作的执行者
+   - 如果无法推断，character_text 设为 null
+
+4. **对话完整性**：
+   - 对话内容必须完整，不要截断
+   - 例："就是这个。" 和 "张明的遗书，收件人是你。" 应该是**两个独立的 dialogue beats**
 
 已知角色：{characters}
 
@@ -156,6 +177,7 @@ CRITIC_PROMPT = """\
 2. **类型错误（wrong_type）**：是否被错分类？
    - 视觉/动作描述（如"看到来电显示"、"看到屏幕亮"）应归 action，不是 voiceover
    - 内心独白（明确"心里想"/"脑海"标记）应归 voiceover
+   - 叙述性文字（如"老君山天文台在海拔两千四百米"）应归 transition 或 action，**不是** voiceover
    - 角色主动说出的对白应归 dialogue，不是 action
 
 3. **缺失角色（missing_character）**：action/voiceover 应该有 character 但留空时，根据主语解析
@@ -164,10 +186,12 @@ CRITIC_PROMPT = """\
 
 5. **重复/合并（duplicate_beat / should_be_split）**：是否同一内容出现两次？是否应该拆分？
 
+6. **对话完整性（incomplete_dialogue）**：对话内容是否被截断？
+
 【审查方法】
 
 逐条比对节拍内容与场景文本，**只标注有问题的节拍**。对每条怀疑的节拍：
-- issue 归类（wrong_speaker / wrong_type / missing_character / wrong_content / duplicate_beat / should_be_split）
+- issue 归类（wrong_speaker / wrong_type / missing_character / wrong_content / duplicate_beat / should_be_split / incomplete_dialogue）
 - fix 给出**只包含修改字段**的修正对象
 - confidence 0-1（0.5 以下不要提交，宁可漏报）
 - reasoning 一句话解释
