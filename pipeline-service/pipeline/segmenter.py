@@ -70,9 +70,20 @@ async def segment_scenes(
     )
     data = await llm_complete(prompt, schema=SEGMENT_SCHEMA)
 
+    # Get chapter text length for boundary checking
+    text_len = len(chapter.text)
+
     scenes = []
     for idx, s in enumerate(data.get("scenes", []), start=1):
         seg = s.get("text_segment", [0, 0])
+        if len(seg) == 2:
+            start, end = seg
+            # Boundary check: ensure text_segment is within chapter text bounds
+            start = max(0, min(start, text_len))
+            end = max(start, min(end, text_len))
+        else:
+            start, end = 0, text_len
+
         scenes.append(
             Scene(
                 id=f"ch{chapter.order}_s{idx}",
@@ -86,7 +97,7 @@ async def segment_scenes(
                 time=s.get("time", "continuous"),
                 type=s.get("type", "interior"),
                 description=s.get("description", ""),
-                text_segment=(seg[0], seg[1]) if len(seg) == 2 else (0, 0),
+                text_segment=(start, end),
                 chapter_order=chapter.order,
             )
         )
