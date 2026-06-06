@@ -48,7 +48,9 @@ public class UserRepositoryImpl implements UserRepository {
     @Override
     public void save(User user) {
         UserPO po = userConverter.toPO(user);
-        if (po.getId() == null) {
+        // Check if user exists by ID
+        UserPO existing = userMapper.selectById(po.getId());
+        if (existing == null) {
             userMapper.insert(po);
         } else {
             userMapper.updateById(po);
