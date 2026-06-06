@@ -160,6 +160,7 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
             locations = struct_data["locations"]
             scenes_by_chapter = struct_data["scenes_by_chapter"]
             synopsis = struct_data.get("synopsis", "")
+            logger.info("Structure service returned synopsis: %s", repr(synopsis))
             n_scenes = sum(len(s) for s in scenes_by_chapter.values())
             await store.append_event(
                 run_id=run_id, event_type="stage.structure.done",
@@ -179,6 +180,7 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
                     (c["text"] for c in chapters if c["order"] == int(chapter_order)),
                     None,
                 )
+                logger.info("Chapter %s: chapter_text length=%s", chapter_order, len(chapter_text) if chapter_text else 0)
                 for idx, scene in enumerate(scene_list, start=1):
                     start, end = scene["text_segment"]
                     scene_text = (
@@ -186,6 +188,7 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
                         if chapter_text and end > start
                         else (chapter_text or "")
                     )
+                    logger.info("Scene ch%s_s%s: text_segment=[%s,%s], scene_text length=%s", chapter_order, idx, start, end, len(scene_text))
                     all_scenes.append({
                         "scene_id": f"ch{chapter_order}_s{idx}",
                         "chapter_order": chapter_order,
