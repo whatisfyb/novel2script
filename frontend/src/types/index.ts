@@ -175,15 +175,18 @@ export type ConversionStatus = 'completed' | 'processing' | 'failed'
 
 export interface HistoryRecord {
   id: string
+  runId: string
+  userId?: string
   filename: string
   title: string
-  script_type: ScriptType
+  scriptType: ScriptType
   language: Language
   status: ConversionStatus
-  created_at: string
+  createdAt: string
   chapters: number
   acts: number
   scenes: number
   characters: number
   yaml: string
+  error?: string
 }

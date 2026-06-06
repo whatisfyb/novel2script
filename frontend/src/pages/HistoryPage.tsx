@@ -61,8 +61,8 @@ const HistoryPage: FC = () => {
   const loadData = async () => {
     setLoading(true)
     try {
-      const data = await fetchHistory()
-      setRecords(data)
+      const { items } = await fetchHistory()
+      setRecords(items)
     } finally {
       setLoading(false)
     }
@@ -79,16 +79,16 @@ const HistoryPage: FC = () => {
       )
     }
     if (filterType !== 'all') {
-      result = result.filter((r) => r.script_type === filterType)
+      result = result.filter((r) => r.scriptType === filterType)
     }
     return result.sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     )
   }, [records, search, filterType])
 
-  const handleDelete = async (id: string) => {
-    await deleteHistoryRecord(id)
-    setRecords((prev) => prev.filter((r) => r.id !== id))
+  const handleDelete = async (runId: string) => {
+    await deleteHistoryRecord(runId)
+    setRecords((prev) => prev.filter((r) => r.runId !== runId))
     message.success('已删除')
   }
 
@@ -323,7 +323,7 @@ const HistoryCard: FC<CardProps> = ({ record, onView, onDelete }) => {
             color: 'var(--ink-500)',
           }}
         >
-          {SCRIPT_TYPE_LABELS[record.script_type]}
+          {SCRIPT_TYPE_LABELS[record.scriptType]}
         </Text>
       </div>
 
@@ -380,7 +380,7 @@ const HistoryCard: FC<CardProps> = ({ record, onView, onDelete }) => {
           }}
         >
           <CalendarOutlined style={{ marginRight: 4 }} />
-          {timeAgo(record.created_at)}
+          {timeAgo(record.createdAt)}
         </Text>
         <Space size="small">
           <Button
@@ -395,7 +395,7 @@ const HistoryCard: FC<CardProps> = ({ record, onView, onDelete }) => {
           <Popconfirm
             title="确定删除这条记录吗？"
             description="删除后不可恢复"
-            onConfirm={() => onDelete(record.id)}
+            onConfirm={() => onDelete(record.runId)}
             okText="删除"
             cancelText="取消"
             okButtonProps={{ danger: true }}
@@ -489,14 +489,14 @@ const HistoryListItem: FC<ListItemProps> = ({ record, onView, onDelete, isLast }
               fontFamily: 'var(--font-mono)',
             }}
           >
-            {record.filename} · {SCRIPT_TYPE_LABELS[record.script_type]} · {record.chapters}章 · {record.scenes}场
+            {record.filename} · {SCRIPT_TYPE_LABELS[record.scriptType]} · {record.chapters}章 · {record.scenes}场
           </Text>
         </div>
       </div>
 
       <div className="flex items-center gap-3 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
         <Text style={{ fontSize: 12, color: 'var(--ink-500)' }}>
-          {timeAgo(record.created_at)}
+          {timeAgo(record.createdAt)}
         </Text>
         <Button
           size="small"
@@ -507,7 +507,7 @@ const HistoryListItem: FC<ListItemProps> = ({ record, onView, onDelete, isLast }
         />
         <Popconfirm
           title="确定删除？"
-          onConfirm={() => onDelete(record.id)}
+          onConfirm={() => onDelete(record.runId)}
           okText="删除"
           cancelText="取消"
           okButtonProps={{ danger: true }}
