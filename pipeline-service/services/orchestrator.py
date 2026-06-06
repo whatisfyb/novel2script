@@ -202,25 +202,36 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
                 payload={"n_scenes": len(all_scenes)},
             )
 
-            # Call beat service in parallel per scene
-            async def process_scene(scene: dict) -> tuple[str, list[dict]]:
-                resp = await client.post(
-                    f"{BEAT_URL}/extract",
-                    json={
-                        "scene": scene,
-                        "characters": characters,
-                        "run_id": run_id,
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                return scene["scene_id"], data.get("beats", [])
-
-            scene_results = await asyncio.gather(
-                *(process_scene(s) for s in all_scenes),
-                return_exceptions=True,
-            )
+            # Call beat service **strictly sequentially** to avoid triggering
+            # upstream LLM rate limits. ReAct's 6-iteration loop per scene
+            # pushes ~6-18 LLM calls per scene, so even 2 scenes in parallel
+            # exceeds MiMo's 100 RPM. Sequential processing trades latency
+            # for reliability.
             beats_by_scene: dict[str, list[dict]] = {}
+            for idx, scene in enumerate(all_scenes):
+                if idx > 0:
+                    # Stagger between scenes. ~6 LLM calls per scene at
+                    # ~2-3s each = 12-18s per scene. 5s extra buffer.
+                    await asyncio.sleep(5.0)
+                try:
+                    resp = await client.post(
+                        f"{BEAT_URL}/extract",
+                        json={
+                            "scene": scene,
+                            "characters": characters,
+                            "run_id": run_id,
+                        },
+                        timeout=180.0,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    beats_by_scene[scene["scene_id"]] = data.get("beats", [])
+                except Exception as exc:
+                    logger.warning(
+                        "Beat failed for %s: %s", scene["scene_id"], exc,
+                    )
+                    beats_by_scene[scene["scene_id"]] = []
+            scene_results = []  # unused after this rewrite
             for scene, result in zip(all_scenes, scene_results):
                 if isinstance(result, Exception):
                     logger.warning("Beat failed for %s: %s", scene["scene_id"], result)

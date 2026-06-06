@@ -17,7 +17,8 @@ from dataclasses import dataclass, field
 
 from llm.client import llm_complete
 from llm.prompts import SEGMENT_SCENES_PROMPT
-from llm.schemas import SEGMENT_SCHEMA
+from llm.pydantic_schemas import SegmentScenesOutput
+from llm.schemas import SEGMENT_SCHEMA  # legacy fallback
 
 
 @dataclass
@@ -68,7 +69,7 @@ async def segment_scenes(
         locations=loc_str,
         chapter_text=chapter.text,
     )
-    data = await llm_complete(prompt, schema=SEGMENT_SCHEMA)
+    data = await llm_complete(prompt, pydantic_model=SegmentScenesOutput)
 
     # Get chapter text length for boundary checking
     text_len = len(chapter.text)
