@@ -13,12 +13,16 @@ Runs per-chapter in parallel for throughput.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from llm.client import llm_complete
 from llm.prompts import SEGMENT_SCENES_PROMPT
 from llm.pydantic_schemas import SegmentScenesOutput
 from llm.schemas import SEGMENT_SCHEMA  # legacy fallback
+
+# Maximum segment length in characters — segments exceeding this are split
+MAX_SCENE_CHARS = 800
 
 
 @dataclass
@@ -102,4 +106,83 @@ async def segment_scenes(
                 chapter_order=chapter.order,
             )
         )
+    # Post-process: split oversized scenes at sentence boundaries
+    scenes = _split_oversized_scenes(scenes, chapter.text)
+
     return scenes
+
+
+def _split_oversized_scenes(
+    scenes: list[Scene], chapter_text: str
+) -> list[Scene]:
+    """Split scenes whose text_segment exceeds MAX_SCENE_CHARS.
+
+    Splits at Chinese sentence boundaries (。！？\n\n) to preserve
+    dialogue and narrative coherence. Re-numbers all scenes after splitting.
+    """
+    if not scenes:
+        return scenes
+
+    result: list[Scene] = []
+    scene_num = 0
+
+    for scene in scenes:
+        start, end = scene.text_segment
+        span = end - start
+        if span <= MAX_SCENE_CHARS:
+            scene_num += 1
+            scene.number = scene_num
+            scene.id = f"ch{scene.chapter_order}_s{scene_num}"
+            result.append(scene)
+            continue
+
+        # Need to split — find sentence boundaries within the segment
+        segment_text = chapter_text[start:end]
+        # Find all sentence-ending positions (absolute offsets within segment)
+        boundaries = [
+            m.end()
+            for m in re.finditer(r"[。！？\n]", segment_text)
+        ]
+        # Add the full span as the last boundary
+        if not boundaries or boundaries[-1] != span:
+            boundaries.append(span)
+
+        # Greedy split: accumulate until we approach MAX_SCENE_CHARS
+        chunks: list[tuple[int, int]] = []
+        chunk_start = 0
+        for boundary in boundaries:
+            if boundary - chunk_start >= MAX_SCENE_CHARS:
+                # Close current chunk at this boundary
+                chunks.append((chunk_start, boundary))
+                chunk_start = boundary
+        # Last chunk
+        if chunk_start < span:
+            chunks.append((chunk_start, span))
+
+        # If splitting produced only 1 chunk (no suitable boundary), keep original
+        if len(chunks) <= 1:
+            scene_num += 1
+            scene.number = scene_num
+            scene.id = f"ch{scene.chapter_order}_s{scene_num}"
+            result.append(scene)
+            continue
+
+        # Create sub-scenes
+        for sub_idx, (sub_start, sub_end) in enumerate(chunks):
+            scene_num += 1
+            result.append(Scene(
+                id=f"ch{scene.chapter_order}_s{scene_num}",
+                number=scene_num,
+                heading=dict(scene.heading),
+                location=scene.location,
+                time=scene.time,
+                type=scene.type,
+                description=(
+                    f"{scene.description}（{sub_idx + 1}/{len(chunks)}）"
+                    if len(chunks) > 1 else scene.description
+                ),
+                text_segment=(start + sub_start, start + sub_end),
+                chapter_order=scene.chapter_order,
+            ))
+
+    return result
