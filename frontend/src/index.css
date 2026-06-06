@@ -1,6 +1,139 @@
 @import "tailwindcss";
 
+/* ── Design System: Editorial Cinematic ── */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,700;9..144,900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* Palette — warm ink & paper */
+  --ink-900: #1c1917;
+  --ink-800: #292524;
+  --ink-700: #44403c;
+  --ink-500: #78716c;
+  --ink-300: #d6d3d1;
+  --ink-100: #f5f5f4;
+
+  --paper-50: #fafaf9;
+  --paper-100: #f5f5f4;
+
+  --accent-700: #b45309;   /* deep amber */
+  --accent-500: #d97706;   /* warm gold */
+  --accent-300: #fcd34d;
+  --accent-100: #fef3c7;
+
+  --sienna: #9a3412;       /* error / dramatic accent */
+
+  /* Semantic */
+  --bg-primary:   #faf8f5;    /* warm paper */
+  --bg-card:      #ffffff;
+  --bg-subtle:    #f3f0eb;
+  --bg-header:    rgba(255, 255, 255, 0.85);
+  --border-color: #e7e5e4;
+  --border-strong: #d6d3d1;
+
+  --text-heading: var(--ink-900);
+  --text-body:    var(--ink-700);
+  --text-muted:   var(--ink-500);
+
+  /* Typography */
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-body:    'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* Shadows — warm, not generic gray */
+  --shadow-xs:  0 1px 2px rgba(28, 25, 23, 0.04);
+  --shadow-sm:  0 1px 3px rgba(28, 25, 23, 0.06), 0 1px 2px rgba(28, 25, 23, 0.04);
+  --shadow-md:  0 4px 12px rgba(28, 25, 23, 0.08), 0 2px 4px rgba(28, 25, 23, 0.04);
+  --shadow-warm: 0 4px 16px rgba(180, 83, 9, 0.08), 0 1px 3px rgba(28, 25, 23, 0.04);
+}
+
+/* ── Noise texture background (no gradients!) ── */
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-body);
+  color: var(--text-body);
+  background-color: var(--bg-primary);
+  /* SVG noise — paper grain texture */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.1 0 0 0 0 0.09 0 0 0 0 0.08 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Headings use display font ── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* ── Decorative rule line ── */
+.editorial-rule {
+  position: relative;
+  text-align: center;
+}
+.editorial-rule::before,
+.editorial-rule::after {
+  content: '';
+  display: inline-block;
+  width: 48px;
+  height: 1px;
+  background: var(--border-strong);
+  vertical-align: middle;
+  margin: 0 16px;
+}
+
+/* ── Card surface ── */
+.surface-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-xs);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.surface-card:hover {
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-strong);
+}
+
+/* ── Accent dot ── */
+.accent-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-500);
+  display: inline-block;
+}
+
+/* ── Subtle entrance animation ── */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fade-up {
+  animation: fadeUp 0.5s ease-out both;
+}
+.fade-up-delay-1 { animation-delay: 0.08s; }
+.fade-up-delay-2 { animation-delay: 0.16s; }
+.fade-up-delay-3 { animation-delay: 0.24s; }
+
+/* ── Scrollbar styling ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ink-300);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-500);
 }

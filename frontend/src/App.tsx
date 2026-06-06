@@ -10,33 +10,49 @@ import AppHeader from '@/components/AppHeader'
 function App() {
   const { token, step, reset, settings, setSettings } = useSessionStore()
 
+  const themeConfig = {
+    locale: zhCN,
+    theme: {
+      token: {
+        colorPrimary: '#b45309',
+        colorText: '#44403c',
+        colorTextHeading: '#1c1917',
+        colorTextSecondary: '#78716c',
+        colorBorder: '#e7e5e4',
+        colorBgContainer: '#ffffff',
+        fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+        fontSize: 14,
+        borderRadius: 6,
+        borderRadiusLG: 8,
+        controlHeight: 38,
+        controlHeightLG: 44,
+      },
+      components: {
+        Typography: {
+          fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+          fontFamilyCode: "'JetBrains Mono', monospace",
+        },
+        Button: {
+          fontWeight: 500,
+        },
+        Card: {
+          borderRadiusLG: 8,
+        },
+      },
+    },
+  }
+
   if (!token) {
     return (
-      <ConfigProvider
-        locale={zhCN}
-        theme={{
-          token: {
-            colorPrimary: '#6366f1',
-            borderRadius: 8,
-          },
-        }}
-      >
+      <ConfigProvider {...themeConfig}>
         <LoginPage />
       </ConfigProvider>
     )
   }
 
   return (
-    <ConfigProvider
-      locale={zhCN}
-      theme={{
-        token: {
-          colorPrimary: '#6366f1',
-          borderRadius: 8,
-        },
-      }}
-    >
-      <div className="min-h-screen bg-gray-50">
+    <ConfigProvider {...themeConfig}>
+      <div className="min-h-screen">
         <AppHeader />
         {step === 'upload' && (
           <UploadPage

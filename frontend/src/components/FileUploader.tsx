@@ -23,18 +23,48 @@ const FileUploader: FC<Props> = ({ onFileSelected }) => {
   return (
     <Dragger
       {...uploadProps}
-      className="!rounded-2xl !border-2 !border-dashed !border-gray-200 hover:!border-indigo-300 !bg-white !transition-all !duration-300 hover:!shadow-md"
+      style={{
+        borderRadius: 8,
+        border: '2px dashed var(--border-strong)',
+        backgroundColor: 'var(--bg-card)',
+        transition: 'all 0.25s ease',
+      }}
     >
-      <div className="py-8">
+      <div className="py-10">
         <p className="mb-4">
-          <span className="inline-flex items-center justify-center w-20 h-20 bg-indigo-100 rounded-2xl">
-            <InboxOutlined className="text-4xl text-indigo-500" />
+          <span
+            className="inline-flex items-center justify-center"
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: 8,
+              backgroundColor: 'var(--accent-100)',
+            }}
+          >
+            <InboxOutlined
+              style={{
+                fontSize: 32,
+                color: 'var(--accent-700)',
+              }}
+            />
           </span>
         </p>
-        <p className="text-lg font-medium text-gray-700 mb-1">
+        <p
+          style={{
+            fontSize: 16,
+            fontWeight: 600,
+            color: 'var(--ink-900)',
+            marginBottom: 4,
+          }}
+        >
           点击或拖拽小说文件到此区域
         </p>
-        <p className="text-gray-400">
+        <p
+          style={{
+            fontSize: 13,
+            color: 'var(--ink-500)',
+          }}
+        >
           支持 .txt / .md / .docx 格式 · 建议 3 章以上
         </p>
       </div>

@@ -1,5 +1,5 @@
-import { Select, Card, Space, Tag } from 'antd'
-import { VideoCameraOutlined, SettingOutlined } from '@ant-design/icons'
+import { Select, Space } from 'antd'
+import { VideoCameraOutlined, SettingOutlined, GlobalOutlined } from '@ant-design/icons'
 import type { FC } from 'react'
 import type { ConversionSettings, ScriptType, Language } from '@/types'
 
@@ -23,21 +23,47 @@ const LANGUAGES: { value: Language; label: string }[] = [
 
 const SettingsPanel: FC<Props> = ({ settings, onChange }) => {
   return (
-    <Card
-      className="!rounded-2xl !border-0 !shadow-sm mt-4"
-      title={
-        <Space>
-          <SettingOutlined className="text-indigo-500" />
-          <span>转换设置</span>
-        </Space>
-      }
-      styles={{ body: { padding: '20px 24px' } }}
+    <div
+      className="mt-5 p-6"
+      style={{
+        backgroundColor: 'var(--bg-card)',
+        border: '1px solid var(--border-color)',
+        borderRadius: 8,
+        boxShadow: 'var(--shadow-xs)',
+      }}
     >
+      <div className="flex items-center gap-2 mb-5">
+        <SettingOutlined style={{ color: 'var(--accent-700)', fontSize: 15 }} />
+        <span
+          style={{
+            fontWeight: 600,
+            fontSize: 14,
+            color: 'var(--ink-900)',
+            letterSpacing: '0.01em',
+          }}
+        >
+          转换设置
+        </span>
+        <span
+          className="accent-dot ml-1"
+        />
+      </div>
+
       <div className="grid grid-cols-2 gap-6">
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <VideoCameraOutlined className="text-gray-400" />
-            <span className="text-sm text-gray-600 font-medium">剧本类型</span>
+            <VideoCameraOutlined style={{ color: 'var(--ink-300)', fontSize: 13 }} />
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--ink-500)',
+                fontWeight: 500,
+                letterSpacing: '0.03em',
+                textTransform: 'uppercase',
+              }}
+            >
+              剧本类型
+            </span>
           </div>
           <Select
             value={settings.script_type}
@@ -49,7 +75,7 @@ const SettingsPanel: FC<Props> = ({ settings, onChange }) => {
               label: (
                 <Space>
                   {t.label}
-                  <Tag className="text-xs" color="default">{t.desc}</Tag>
+                  <span style={{ fontSize: 12, color: 'var(--ink-500)' }}>{t.desc}</span>
                 </Space>
               ),
             }))}
@@ -58,8 +84,18 @@ const SettingsPanel: FC<Props> = ({ settings, onChange }) => {
 
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm text-gray-400">🌐</span>
-            <span className="text-sm text-gray-600 font-medium">输出语言</span>
+            <GlobalOutlined style={{ color: 'var(--ink-300)', fontSize: 13 }} />
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--ink-500)',
+                fontWeight: 500,
+                letterSpacing: '0.03em',
+                textTransform: 'uppercase',
+              }}
+            >
+              输出语言
+            </span>
           </div>
           <Select
             value={settings.language || 'zh'}
@@ -73,7 +109,7 @@ const SettingsPanel: FC<Props> = ({ settings, onChange }) => {
           />
         </div>
       </div>
-    </Card>
+    </div>
   )
 }
 

@@ -24,30 +24,67 @@ const EditorPage: FC<Props> = ({ onReset }) => {
   return (
     <div className="flex flex-col" style={{ height: 'calc(100vh - 64px)' }}>
       {/* Toolbar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex-shrink-0">
+      <div
+        className="px-6 py-3 flex-shrink-0 border-b"
+        style={{
+          backgroundColor: 'var(--bg-card)',
+          borderColor: 'var(--border-color)',
+        }}
+      >
         <div className="flex justify-between items-center">
-          <Space size="middle">
-            <Button icon={<ArrowLeftOutlined />} onClick={onReset} type="text" className="text-gray-500">
+          <Space size="middle" align="center">
+            <Button
+              icon={<ArrowLeftOutlined />}
+              onClick={onReset}
+              type="text"
+              style={{ color: 'var(--ink-500)' }}
+            >
               重新开始
             </Button>
-            <div className="w-px h-6 bg-gray-200" />
-            <Title level={5} className="!mb-0 !text-gray-700">剧本编辑器</Title>
+            <div
+              style={{ width: 1, height: 24, backgroundColor: 'var(--border-color)' }}
+            />
+            <Title
+              level={5}
+              style={{
+                marginBottom: 0,
+                color: 'var(--ink-700)',
+                fontFamily: 'var(--font-display)',
+              }}
+            >
+              剧本编辑器
+            </Title>
             {file && (
-              <Tag color="purple" className="!rounded-full">{file.name}</Tag>
+              <Tag
+                style={{
+                  borderRadius: 4,
+                  backgroundColor: 'var(--accent-100)',
+                  color: 'var(--accent-700)',
+                  border: 'none',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                }}
+              >
+                {file.name}
+              </Tag>
             )}
           </Space>
 
-          <Space>
+          <Space align="center">
             {/* Status bar info */}
             <Tooltip title="行数 / 字符数">
-              <Space size={4} className="text-gray-400 text-sm">
+              <Space size={4} style={{ color: 'var(--ink-500)', fontSize: 13 }}>
                 <CodeOutlined />
                 <span>{lineCount} 行</span>
-                <span className="text-gray-300">·</span>
-                <span>{charCount.toLocaleString()} 字</span>
+                <span style={{ color: 'var(--ink-300)' }}>·</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }}>
+                  {charCount.toLocaleString()} 字
+                </span>
               </Space>
             </Tooltip>
-            <div className="w-px h-6 bg-gray-200" />
+            <div
+              style={{ width: 1, height: 24, backgroundColor: 'var(--border-color)' }}
+            />
             <ExportPanel yamlText={editedYaml} />
           </Space>
         </div>
@@ -58,10 +95,27 @@ const EditorPage: FC<Props> = ({ onReset }) => {
         {/* YAML Editor */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <div className="flex items-center gap-2 mb-2 px-1 flex-shrink-0">
-            <div className="w-2 h-2 rounded-full bg-indigo-500" />
-            <Text className="text-gray-600 font-medium text-sm">YAML 编辑器</Text>
+            <span className="accent-dot" />
+            <Text
+              style={{
+                color: 'var(--ink-700)',
+                fontWeight: 500,
+                fontSize: 13,
+                letterSpacing: '0.02em',
+              }}
+            >
+              YAML 编辑器
+            </Text>
           </div>
-          <div className="flex-1 rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-white min-h-0">
+          <div
+            className="flex-1 overflow-hidden border min-h-0"
+            style={{
+              borderRadius: 8,
+              borderColor: 'var(--border-color)',
+              boxShadow: 'var(--shadow-xs)',
+              backgroundColor: '#fff',
+            }}
+          >
             <MonacoYaml value={editedYaml} onChange={setEditedYaml} />
           </div>
         </div>
@@ -69,10 +123,34 @@ const EditorPage: FC<Props> = ({ onReset }) => {
         {/* Script Preview */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <div className="flex items-center gap-2 mb-2 px-1 flex-shrink-0">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            <Text className="text-gray-600 font-medium text-sm">剧本预览</Text>
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: 'var(--accent-500)',
+                display: 'inline-block',
+              }}
+            />
+            <Text
+              style={{
+                color: 'var(--ink-700)',
+                fontWeight: 500,
+                fontSize: 13,
+                letterSpacing: '0.02em',
+              }}
+            >
+              剧本预览
+            </Text>
           </div>
-          <div className="flex-1 rounded-xl overflow-hidden border border-gray-200 shadow-sm min-h-0">
+          <div
+            className="flex-1 overflow-hidden border min-h-0"
+            style={{
+              borderRadius: 8,
+              borderColor: 'var(--border-color)',
+              boxShadow: 'var(--shadow-xs)',
+            }}
+          >
             <ScriptPreview yamlText={editedYaml} />
           </div>
         </div>

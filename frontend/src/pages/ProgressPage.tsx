@@ -128,12 +128,41 @@ const ProgressPage: FC<Props> = ({ onComplete, onCancel }) => {
   }, [progress?.percentage, onComplete])
 
   return (
-    <div className="max-w-4xl mx-auto px-4 pt-12 pb-24">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+    <div className="max-w-4xl mx-auto px-6 pt-16 pb-24 fade-up">
+      <div className="text-center mb-10">
+        <div
+          className="inline-block mb-4 px-3 py-1 text-xs tracking-widest uppercase"
+          style={{
+            backgroundColor: 'var(--accent-100)',
+            color: 'var(--accent-700)',
+            borderRadius: 3,
+            fontWeight: 600,
+            letterSpacing: '0.1em',
+          }}
+        >
+          Processing
+        </div>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '2.25rem',
+            fontWeight: 700,
+            color: 'var(--ink-900)',
+            marginBottom: 8,
+            letterSpacing: '-0.02em',
+          }}
+        >
           AI 正在转换你的剧本
         </h1>
-        <p className="text-gray-400">{file?.name}{runId ? ` · run ${runId}` : ''}</p>
+        <p
+          style={{
+            color: 'var(--ink-500)',
+            fontSize: 15,
+            fontFamily: 'var(--font-mono)',
+          }}
+        >
+          {file?.name}{runId ? ` · run ${runId}` : ''}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -141,8 +170,13 @@ const ProgressPage: FC<Props> = ({ onComplete, onCancel }) => {
         <EventLog maxHeight={420} />
       </div>
 
-      <div className="text-center mt-6">
-        <Button icon={<ArrowLeftOutlined />} onClick={onCancel} type="text" className="text-gray-400">
+      <div className="text-center mt-8">
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={onCancel}
+          type="text"
+          style={{ color: 'var(--ink-500)' }}
+        >
           取消并重新选择
         </Button>
       </div>
