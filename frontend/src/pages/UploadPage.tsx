@@ -8,7 +8,6 @@ import {
 import type { FC } from 'react'
 import { useCallback, useState } from 'react'
 import { useSessionStore } from '@/stores/session'
-import { uploadFile } from '@/services/api'
 import FileUploader from '@/components/FileUploader'
 import SettingsPanel from '@/components/SettingsPanel'
 import type { ConversionSettings } from '@/types'
