@@ -142,6 +142,7 @@ CRITIC_SCHEMA = {
                         "enum": [
                             "wrong_speaker", "wrong_type", "missing_character",
                             "wrong_content", "duplicate_beat", "should_be_split",
+                            "incomplete_dialogue",
                         ],
                     },
                     "fix": {

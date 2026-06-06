@@ -159,6 +159,8 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
             characters = struct_data["characters"]
             locations = struct_data["locations"]
             scenes_by_chapter = struct_data["scenes_by_chapter"]
+            synopsis = struct_data.get("synopsis", "")
+            logger.info("Structure service returned synopsis: %s", repr(synopsis))
             n_scenes = sum(len(s) for s in scenes_by_chapter.values())
             await store.append_event(
                 run_id=run_id, event_type="stage.structure.done",
@@ -173,10 +175,12 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
             all_scenes: list[dict] = []
             for chapter_order, scene_list in scenes_by_chapter.items():
                 # Find the matching chapter text
+                # NOTE: chapter_order is str from JSON dict keys, c["order"] is int
                 chapter_text = next(
-                    (c["text"] for c in chapters if c["order"] == chapter_order),
+                    (c["text"] for c in chapters if c["order"] == int(chapter_order)),
                     None,
                 )
+                logger.info("Chapter %s: chapter_text length=%s", chapter_order, len(chapter_text) if chapter_text else 0)
                 for idx, scene in enumerate(scene_list, start=1):
                     start, end = scene["text_segment"]
                     scene_text = (
@@ -184,6 +188,7 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
                         if chapter_text and end > start
                         else (chapter_text or "")
                     )
+                    logger.info("Scene ch%s_s%s: text_segment=[%s,%s], scene_text length=%s", chapter_order, idx, start, end, len(scene_text))
                     all_scenes.append({
                         "scene_id": f"ch{chapter_order}_s{idx}",
                         "chapter_order": chapter_order,
@@ -197,25 +202,36 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
                 payload={"n_scenes": len(all_scenes)},
             )
 
-            # Call beat service in parallel per scene
-            async def process_scene(scene: dict) -> tuple[str, list[dict]]:
-                resp = await client.post(
-                    f"{BEAT_URL}/extract",
-                    json={
-                        "scene": scene,
-                        "characters": characters,
-                        "run_id": run_id,
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                return scene["scene_id"], data.get("beats", [])
-
-            scene_results = await asyncio.gather(
-                *(process_scene(s) for s in all_scenes),
-                return_exceptions=True,
-            )
+            # Call beat service **strictly sequentially** to avoid triggering
+            # upstream LLM rate limits. ReAct's 6-iteration loop per scene
+            # pushes ~6-18 LLM calls per scene, so even 2 scenes in parallel
+            # exceeds MiMo's 100 RPM. Sequential processing trades latency
+            # for reliability.
             beats_by_scene: dict[str, list[dict]] = {}
+            for idx, scene in enumerate(all_scenes):
+                if idx > 0:
+                    # Stagger between scenes. ~6 LLM calls per scene at
+                    # ~2-3s each = 12-18s per scene. 5s extra buffer.
+                    await asyncio.sleep(5.0)
+                try:
+                    resp = await client.post(
+                        f"{BEAT_URL}/extract",
+                        json={
+                            "scene": scene,
+                            "characters": characters,
+                            "run_id": run_id,
+                        },
+                        timeout=180.0,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    beats_by_scene[scene["scene_id"]] = data.get("beats", [])
+                except Exception as exc:
+                    logger.warning(
+                        "Beat failed for %s: %s", scene["scene_id"], exc,
+                    )
+                    beats_by_scene[scene["scene_id"]] = []
+            scene_results = []  # unused after this rewrite
             for scene, result in zip(all_scenes, scene_results):
                 if isinstance(result, Exception):
                     logger.warning("Beat failed for %s: %s", scene["scene_id"], result)
@@ -249,6 +265,8 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
                     "title": filename.rsplit(".", 1)[0],
                     "type": "tv",
                     "language": "zh",
+                    "source_chapters": len(chapters),
+                    "synopsis": synopsis,
                 },
                 characters=characters,
                 locations=locations,
