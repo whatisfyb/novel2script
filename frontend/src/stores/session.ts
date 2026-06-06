@@ -7,7 +7,7 @@ import type {
   User,
 } from '@/types'
 
-type Step = 'upload' | 'progress' | 'editor'
+type Step = 'upload' | 'progress' | 'editor' | 'history'
 
 interface SessionState {
   // Auth
@@ -35,6 +35,7 @@ interface SessionState {
   setFile: (file: File) => void
   setRunId: (id: string) => void
   setStep: (step: Step) => void
+  loadHistoryYaml: (yaml: string) => void
   updateProgress: (progress: ConversionProgress) => void
   setCurrentStage: (stage: PipelineStageKey) => void
   appendEvent: (event: PipelineEvent) => void
@@ -93,6 +94,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   setFile: (file) => set({ file }),
   setRunId: (id) => set({ runId: id }),
   setStep: (step) => set({ step }),
+  loadHistoryYaml: (yaml) => set({ yaml, step: 'editor' }),
   updateProgress: (progress) => set({ progress }),
   setCurrentStage: (stage) => set({ currentStage: stage }),
   appendEvent: (event) => set((s) => ({ events: [...s.events, event] })),
