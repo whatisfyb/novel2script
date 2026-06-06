@@ -4,6 +4,7 @@ import LoginPage from '@/pages/LoginPage'
 import UploadPage from '@/pages/UploadPage'
 import ProgressPage from '@/pages/ProgressPage'
 import EditorPage from '@/pages/EditorPage'
+import HistoryPage from '@/pages/HistoryPage'
 import { useSessionStore } from '@/stores/session'
 import AppHeader from '@/components/AppHeader'
 
@@ -70,6 +71,9 @@ function App() {
         )}
         {step === 'editor' && (
           <EditorPage onReset={() => reset()} />
+        )}
+        {step === 'history' && (
+          <HistoryPage />
         )}
       </div>
     </ConfigProvider>
