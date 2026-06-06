@@ -2,21 +2,24 @@ import { Card, Typography, Space, Tag, Collapse } from 'antd'
 import {
   LoadingOutlined, CheckCircleFilled,
   FileSearchOutlined, SplitCellsOutlined, UserSwitchOutlined,
-  ApartmentOutlined, BuildOutlined,
+  ApartmentOutlined, ThunderboltOutlined, BuildOutlined,
   BulbOutlined,
 } from '@ant-design/icons'
-import type { FC } from 'react'
-import type { ConversionProgress } from '@/types'
+import type { FC, ReactNode } from 'react'
+import type { ConversionProgress, PipelineStageKey } from '@/types'
 import { useSessionStore } from '@/stores/session'
 
 const { Title, Text, Paragraph } = Typography
 
-const STAGES = [
-  { key: 'parser', label: '解析文件', icon: <FileSearchOutlined /> },
-  { key: 'splitter', label: '拆分章节', icon: <SplitCellsOutlined /> },
-  { key: 'analyzer', label: '分析结构', icon: <UserSwitchOutlined /> },
-  { key: 'segmenter', label: '提取场景', icon: <ApartmentOutlined /> },
-  { key: 'assembler', label: '生成剧本', icon: <BuildOutlined /> },
+// 6-stage granular timeline per project spec:
+//   解析(parse) → 拆分(split) → 分析(analyze) → 提取场景(segment) → 抽取节拍(extract) → 装配剧本(assemble)
+const STAGES: { key: PipelineStageKey; label: string; icon: ReactNode }[] = [
+  { key: 'parse',    label: '解析文件',     icon: <FileSearchOutlined /> },
+  { key: 'split',    label: '拆分章节',     icon: <SplitCellsOutlined /> },
+  { key: 'analyze',  label: '分析结构',     icon: <UserSwitchOutlined /> },
+  { key: 'segment',  label: '提取场景',     icon: <ApartmentOutlined /> },
+  { key: 'extract',  label: '抽取节拍',     icon: <ThunderboltOutlined /> },
+  { key: 'assemble', label: '生成剧本',     icon: <BuildOutlined /> },
 ]
 
 interface Props {
@@ -30,7 +33,19 @@ const ProgressBar: FC<Props> = ({ progress }) => {
   const isDone = percentage >= 100
   const thinking = useSessionStore((s) => s.thinking)
 
-  const stageIndex = STAGES.findIndex((s) => s.key === currentStage)
+  // Match by service-level stage (input / structure / beat / assemble) to granular stage key
+  const stageFromService = (s: string): PipelineStageKey | null => {
+    if (s === 'input' || s === 'input_done') return 'parse'
+    if (s === 'structure' || s === 'structure_analyzed') return 'analyze'
+    if (s === 'structure_done' || s === 'segment') return 'segment'
+    if (s === 'beat' || s === 'beat_done') return 'extract'
+    if (s === 'assemble' || s === 'done') return 'assemble'
+    if (s === 'starting') return 'parse'
+    return null
+  }
+
+  const activeKey = stageFromService(currentStage) ?? currentStage as PipelineStageKey
+  const stageIndex = STAGES.findIndex((s) => s.key === activeKey)
 
   return (
     <div className="max-w-xl mx-auto">
@@ -71,7 +86,7 @@ const ProgressBar: FC<Props> = ({ progress }) => {
         </div>
       </Card>
 
-      {/* Stage timeline */}
+      {/* Stage timeline (6 stages) */}
       <Card className="!rounded-2xl !border-0 !shadow-sm" styles={{ body: { padding: '20px 24px' } }}>
         <div className="space-y-0">
           {STAGES.map((stage, idx) => {

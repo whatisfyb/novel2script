@@ -8,7 +8,6 @@ import type { FC } from 'react'
 import FileUploader from '@/components/FileUploader'
 import SettingsPanel from '@/components/SettingsPanel'
 import { useSessionStore } from '@/stores/session'
-import { uploadFile } from '@/services/api'
 import type { ConversionSettings } from '@/types'
 
 const { Title, Text } = Typography
@@ -26,7 +25,7 @@ const features = [
 ]
 
 const UploadPage: FC<Props> = ({ settings, onSettingsChange, onStart }) => {
-  const { setFile, setSessionId } = useSessionStore()
+  const { setFile } = useSessionStore()
   const [loading, setLoading] = useState(false)
 
   const handleFileSelected = useCallback((file: File) => {
@@ -42,11 +41,11 @@ const UploadPage: FC<Props> = ({ settings, onSettingsChange, onStart }) => {
     }
     setLoading(true)
     try {
-      const res = await uploadFile(file)
-      setSessionId(res.session_id)
+      // With the orchestrator, no separate upload step — file is sent when
+      // conversion starts. Just transition to the progress page.
       onStart()
     } catch (err) {
-      message.error(`上传失败: ${err}`)
+      message.error(`启动失败: ${err}`)
     } finally {
       setLoading(false)
     }

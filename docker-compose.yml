@@ -1,0 +1,77 @@
+version: "3.9"
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: novel-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  input:
+    build:
+      context: ./pipeline-service
+      dockerfile: Dockerfile
+    container_name: novel-input
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8001:8001"
+    command: ["uvicorn", "services.input_service:app", "--host", "0.0.0.0", "--port", "8001"]
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  structure:
+    build:
+      context: ./pipeline-service
+      dockerfile: Dockerfile
+    container_name: novel-structure
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8002:8002"
+    command: ["uvicorn", "services.structure_service:app", "--host", "0.0.0.0", "--port", "8002"]
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  beat:
+    build:
+      context: ./pipeline-service
+      dockerfile: Dockerfile
+    container_name: novel-beat
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8003:8003"
+    command: ["uvicorn", "services.beat_service:app", "--host", "0.0.0.0", "--port", "8003"]
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  orchestrator:
+    build:
+      context: ./pipeline-service
+      dockerfile: Dockerfile
+    container_name: novel-orchestrator
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      INPUT_SERVICE_URL: http://input:8001
+      STRUCTURE_SERVICE_URL: http://structure:8002
+      BEAT_SERVICE_URL: http://beat:8003
+    ports:
+      - "8000:8000"
+    command: ["uvicorn", "services.orchestrator:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      input:
+        condition: service_started
+      structure:
+        condition: service_started
+      beat:
+        condition: service_started

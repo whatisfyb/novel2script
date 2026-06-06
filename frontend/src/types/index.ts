@@ -89,10 +89,54 @@ export interface ConversionProgress {
   percentage: number
 }
 
-export interface UploadResponse {
-  session_id: string
-  filename: string
-  chapters_detected?: number
+// --- Multi-service pipeline (orchestrator) types ---
+
+/** 6 granular stages displayed in the progress bar. */
+export type PipelineStageKey =
+  | 'parse'    // input.parsed
+  | 'split'    // input.split_done
+  | 'analyze'  // structure.analyzed
+  | 'segment'  // structure.segmented
+  | 'extract'  // beats.finalized (LangGraph extractor+critic+refiner)
+  | 'assemble' // pipeline.completed
+
+export interface PipelineStageDef {
+  key: PipelineStageKey
+  label: string
+  iconName: string  // icon name resolved by ProgressBar
+}
+
+/** Run status hash stored in Redis (pipeline:status:{run_id}). */
+export interface RunStatus {
+  stage: string             // "input" / "structure" / "beat" / "assemble" / "done" / "failed:..."
+  progress: string          // 0-100
+  total_stages?: string
+  updated_at?: string
+  error?: string
+}
+
+/** Audit-trail event from Redis Stream (pipeline:events:{run_id}). */
+export interface PipelineEvent {
+  _id: string
+  type: string              // e.g. "scene.submitted", "beats.finalized", "pipeline.failed"
+  source: string            // "orchestrator" / "input_service" / "structure_service" / "beat_service"
+  correlation_id: string
+  ts: string
+  payload: Record<string, unknown>
+  metadata: Record<string, unknown>
+}
+
+export interface RunListItem extends RunStatus {
+  run_id: string
+  start_ts: number
+}
+
+export interface SubmitResponse {
+  run_id: string
+}
+
+export interface RunResult {
+  yaml: string
 }
 
 export interface ConversionSettings {

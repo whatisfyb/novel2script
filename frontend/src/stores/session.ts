@@ -1,5 +1,11 @@
 import { create } from 'zustand'
-import type { ConversionProgress, ConversionSettings, User } from '@/types'
+import type {
+  ConversionProgress,
+  ConversionSettings,
+  PipelineEvent,
+  PipelineStageKey,
+  User,
+} from '@/types'
 
 type Step = 'upload' | 'progress' | 'editor'
 
@@ -11,12 +17,14 @@ interface SessionState {
   // Session
   step: Step
   file: File | null
-  sessionId: string | null
+  runId: string | null           // was sessionId — now points to orchestrator run
   progress: ConversionProgress | null
   yaml: string | null
   error: string | null
   settings: ConversionSettings
   thinking: string
+  events: PipelineEvent[]        // audit trail from Redis Stream
+  currentStage: PipelineStageKey | null  // 6-stage granular tracking
 
   // Auth actions
   login: (username: string, password: string) => Promise<void>
@@ -25,9 +33,12 @@ interface SessionState {
 
   // Session actions
   setFile: (file: File) => void
-  setSessionId: (id: string) => void
+  setRunId: (id: string) => void
   setStep: (step: Step) => void
   updateProgress: (progress: ConversionProgress) => void
+  setCurrentStage: (stage: PipelineStageKey) => void
+  appendEvent: (event: PipelineEvent) => void
+  clearEvents: () => void
   setYaml: (yaml: string) => void
   setError: (error: string | null) => void
   setSettings: (settings: ConversionSettings) => void
@@ -44,12 +55,14 @@ export const useSessionStore = create<SessionState>((set) => ({
   // Session state
   step: 'upload',
   file: null,
-  sessionId: null,
+  runId: null,
   progress: null,
   yaml: null,
   error: null,
   settings: { script_type: 'tv', language: 'zh' },
   thinking: '',
+  events: [],
+  currentStage: null,
 
   // Auth actions (mock implementation)
   login: async (username, _password) => {
@@ -66,19 +79,24 @@ export const useSessionStore = create<SessionState>((set) => ({
       token: null,
       step: 'upload',
       file: null,
-      sessionId: null,
+      runId: null,
       progress: null,
       yaml: null,
       error: null,
       thinking: '',
+      events: [],
+      currentStage: null,
     })
   },
 
   // Session actions
   setFile: (file) => set({ file }),
-  setSessionId: (id) => set({ sessionId: id }),
+  setRunId: (id) => set({ runId: id }),
   setStep: (step) => set({ step }),
   updateProgress: (progress) => set({ progress }),
+  setCurrentStage: (stage) => set({ currentStage: stage }),
+  appendEvent: (event) => set((s) => ({ events: [...s.events, event] })),
+  clearEvents: () => set({ events: [] }),
   setYaml: (yaml) => set({ yaml, step: 'editor' }),
   setError: (error) => set({ error }),
   setSettings: (settings) => set({ settings }),
@@ -88,11 +106,13 @@ export const useSessionStore = create<SessionState>((set) => ({
     set({
       step: 'upload',
       file: null,
-      sessionId: null,
+      runId: null,
       progress: null,
       yaml: null,
       error: null,
       thinking: '',
+      events: [],
+      currentStage: null,
       settings: { script_type: 'tv', language: 'zh' },
     }),
 }))
