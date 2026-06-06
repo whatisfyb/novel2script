@@ -123,3 +123,86 @@ EXTRACT_SCHEMA = {
         }
     }
 }
+
+
+# Stage 5b: Critic Agent (HAR-style review) schema
+CRITIC_SCHEMA = {
+    "type": "object",
+    "required": ["corrections"],
+    "properties": {
+        "corrections": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": ["beat_id", "issue", "fix"],
+                "properties": {
+                    "beat_id": {"type": "string"},
+                    "issue": {
+                        "type": "string",
+                        "enum": [
+                            "wrong_speaker", "wrong_type", "missing_character",
+                            "wrong_content", "duplicate_beat", "should_be_split",
+                        ],
+                    },
+                    "fix": {
+                        "type": "object",
+                        "required": ["type", "content"],
+                        "properties": {
+                            "type": {
+                                "type": "string",
+                                "enum": ["action", "dialogue", "voiceover", "transition", "montage"]
+                            },
+                            "character_text": {"type": ["string", "null"]},
+                            "content": {"type": "string"},
+                            "parenthetical": {"type": ["string", "null"]},
+                            "emotion": {"type": ["string", "null"]},
+                            "character_id": {"type": ["string", "null"]},
+                        }
+                    },
+                    "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+                    "reasoning": {"type": "string"},
+                }
+            }
+        }
+    }
+}
+
+
+# Stage 5c: Refiner Agent — full beats output after applying corrections
+REFINER_SCHEMA = {
+    "type": "object",
+    "required": ["beats"],
+    "properties": {
+        "beats": {
+            "type": "array",
+            "description": "Final, definitive beat list after applying critic's corrections.",
+            "items": {
+                "type": "object",
+                "required": ["type", "content"],
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": ["action", "dialogue", "voiceover", "transition", "montage"]
+                    },
+                    "character_id": {
+                        "type": ["string", "null"],
+                        "description": "Character ID from the global table, null for non-character beats"
+                    },
+                    "character_text": {
+                        "type": ["string", "null"],
+                        "description": "Original name as it appears in the novel"
+                    },
+                    "content": {"type": "string"},
+                    "parenthetical": {
+                        "type": ["string", "null"],
+                        "description": "Acting direction in parentheses"
+                    },
+                    "emotion": {
+                        "type": ["string", "null"],
+                        "description": "Emotional state of the character"
+                    }
+                }
+            }
+        }
+    }
+}
