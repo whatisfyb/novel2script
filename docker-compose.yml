@@ -75,3 +75,14 @@ services:
         condition: service_started
       beat:
         condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: novel-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      orchestrator:
+        condition: service_started
