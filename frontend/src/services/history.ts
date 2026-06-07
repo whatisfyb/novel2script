@@ -1,6 +1,6 @@
 import type { HistoryRecord } from '@/types'
 
-const API_BASE = 'http://localhost:8010'
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 
 /** Fetch history list from backend */
 export async function fetchHistory(

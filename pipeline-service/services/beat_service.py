@@ -284,6 +284,63 @@ def _find_speaker_from_speech_verb(
     return None
 
 
+def _infer_null_dialogue_chain(
+    beats: list[Beat],
+    characters: list[dict],
+    active_speakers: list[str],
+    last_speaker: str | None,
+    scene_text: str,
+) -> None:
+    """Pass 2.5: Infer speakers for dialogue beats still unattributed.
+
+    Uses A-B-A-B turn-taking as the primary heuristic. Falls back to the
+    full characters list when active_speakers is empty.
+
+    Algorithm (Sieve approach):
+      1. Build candidate speaker pool (active_speakers, or characters in scene_text).
+      2. For each unattributed dialogue beat:
+         - 2 candidates → alternate based on last known speaker.
+         - 1 candidate  → assign that speaker.
+    """
+    # Build candidate pool
+    candidates = list(active_speakers)
+    if not candidates:
+        # Fall back: scan scene_text for any character name
+        for c in characters:
+            name = c.get("name", "")
+            if name and name in scene_text:
+                candidates.append(name)
+    # If still empty, use first 2 from characters list
+    if not candidates:
+        for c in characters:
+            name = c.get("name", "")
+            if name:
+                candidates.append(name)
+            if len(candidates) >= 2:
+                break
+
+    if not candidates:
+        return  # No one to attribute to
+
+    anchor = last_speaker
+    for b in beats:
+        if b.type != "dialogue":
+            continue
+        if b.character_text:
+            anchor = b.character_text  # Update anchor from known beats
+            continue
+
+        if len(candidates) >= 2:
+            # A-B-A-B alternation
+            if anchor == candidates[0]:
+                b.character_text = candidates[1]
+            else:
+                b.character_text = candidates[0]
+            anchor = b.character_text
+        elif len(candidates) == 1:
+            b.character_text = candidates[0]
+
+
 def _apply_attribution(beats: list[Beat], characters: list[dict], scene_text: str) -> list[Beat]:
     """Deterministic attribution pass on the LLM output.
 
@@ -398,6 +455,12 @@ def _apply_attribution(beats: list[Beat], characters: list[dict], scene_text: st
         if b.type == "dialogue" and active_speakers:
             b.character_text = active_speakers[-1]
             last_dialogue_speaker = b.character_text
+
+    # Pass 2.5: Null dialogue chain inference (A-B-A-B alternation)
+    # After the main loop, some dialogue beats may still have no speaker
+    # (e.g. when active_speakers was empty). Use turn-taking as a fallback.
+    _infer_null_dialogue_chain(beats, characters, active_speakers,
+                               last_dialogue_speaker, scene_text)
 
     # Action beats: attribute to most recent action char
     last_action_char: str | None = None
@@ -889,6 +952,28 @@ async def refiner_node(state: BeatGraphState) -> dict:
     for b in refined_beats_payload:
         if not b.get("id"):
             b["id"] = str(uuid.uuid4())[:8]
+
+    # Re-apply attribution after refinement (refiner may produce new null-character beats)
+    refined_beat_objs = []
+    for b in refined_beats_payload:
+        refined_beat_objs.append(Beat(
+            id=b.get("id", str(uuid.uuid4())[:8]),
+            type=b.get("type", "action"),
+            character_id=b.get("character_id"),
+            character_text=b.get("character_text"),
+            content=b.get("content", ""),
+            parenthetical=b.get("parenthetical"),
+            emotion=b.get("emotion"),
+        ))
+    _apply_attribution(refined_beat_objs, characters, state["scene_text"])
+    refined_beats_payload = [
+        {
+            "id": b.id, "type": b.type, "character_id": b.character_id,
+            "character_text": b.character_text, "content": b.content,
+            "parenthetical": b.parenthetical, "emotion": b.emotion,
+        }
+        for b in refined_beat_objs
+    ]
 
     return {
         "beats": refined_beats_payload,

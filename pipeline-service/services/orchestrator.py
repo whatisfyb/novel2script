@@ -36,7 +36,7 @@ import httpx
 from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from services.redis_store import RedisStore, get_default_store
+from services.redis_store import K, RedisStore, get_default_store
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,7 @@ async def submit_pipeline(
     run_id = f"r_{int(time.time())}_{str(uuid.uuid4())[:6]}"
     store = get_store()
     await store.set_started(run_id)
+    await store.set_status(run_id, filename=file.filename or "upload.txt")
     await store.append_event(
         run_id=run_id, event_type="pipeline.started",
         source="orchestrator", correlation_id=run_id,
@@ -289,6 +290,135 @@ async def _run_pipeline(run_id: str, file_content: bytes, filename: str) -> None
                 source="orchestrator", correlation_id=run_id,
                 payload={"error": str(e)},
             )
+
+
+# ---------------------------------------------------------------------------
+# History API (frontend compatibility)
+# ---------------------------------------------------------------------------
+
+import re as _re
+import yaml as _yaml
+
+
+def _parse_yaml_stats(yaml_str: str) -> dict[str, int]:
+    """Extract chapter/scene/character counts from assembled YAML."""
+    try:
+        data = _yaml.safe_load(yaml_str)
+        if not data:
+            return {"chapters": 0, "scenes": 0, "characters": 0, "acts": 0}
+        meta = data.get("meta", {})
+        characters = data.get("characters", [])
+        acts = data.get("acts", [])
+        scenes = sum(len(a.get("scenes", [])) for a in acts)
+        return {
+            "chapters": meta.get("source_chapters", 0),
+            "scenes": scenes,
+            "characters": len(characters),
+            "acts": len(acts),
+        }
+    except Exception:
+        return {"chapters": 0, "scenes": 0, "characters": 0, "acts": 0}
+
+
+def _run_to_history_record(run_id: str, status: dict, yaml_str: str | None) -> dict:
+    """Convert a Redis run to a HistoryRecord-compatible dict."""
+    stage = status.get("stage", "unknown")
+    if stage == "done":
+        conv_status = "completed"
+    elif stage.startswith("failed"):
+        conv_status = "failed"
+    else:
+        conv_status = "processing"
+
+    filename = status.get("filename", "unknown.txt")
+    title = filename.rsplit(".", 1)[0] if "." in filename else filename
+    start_ts = status.get("start_ts", status.get("updated_at", "0"))
+    try:
+        created_at = time.strftime(
+            "%Y-%m-%dT%H:%M:%SZ", time.gmtime(float(start_ts))
+        )
+    except (ValueError, TypeError):
+        created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    stats = _parse_yaml_stats(yaml_str or "")
+    return {
+        "id": run_id,
+        "runId": run_id,
+        "filename": filename,
+        "title": title,
+        "scriptType": "tv",
+        "language": "zh",
+        "status": conv_status,
+        "createdAt": created_at,
+        "chapters": stats["chapters"],
+        "acts": stats["acts"],
+        "scenes": stats["scenes"],
+        "characters": stats["characters"],
+        "yaml": yaml_str or "",
+        "error": status.get("error"),
+    }
+
+
+@app.get("/api/history")
+async def api_history(
+    page: int = 1, size: int = 20,
+    scriptType: str | None = None, status: str | None = None,
+) -> dict[str, Any]:
+    """List history records (frontend-compatible format)."""
+    store = get_store()
+    runs = await store.list_runs(limit=100)
+
+    records: list[dict] = []
+    for run in runs:
+        run_id = run.get("run_id", "")
+        yaml_str = await store.get_result(run_id)
+        rec = _run_to_history_record(run_id, run, yaml_str)
+
+        # Apply filters
+        if scriptType and scriptType != "all" and rec["scriptType"] != scriptType:
+            continue
+        if status and rec["status"] != status:
+            continue
+        records.append(rec)
+
+    # Sort by createdAt desc
+    records.sort(key=lambda r: r["createdAt"], reverse=True)
+    total = len(records)
+    start = (page - 1) * size
+    items = records[start : start + size]
+    return {"code": 200, "data": {"items": items, "total": total}}
+
+
+@app.get("/api/history/{run_id}")
+async def api_history_get(run_id: str) -> dict[str, Any]:
+    """Get a single history record."""
+    store = get_store()
+    status = await store.get_status(run_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Record not found")
+    yaml_str = await store.get_result(run_id)
+    rec = _run_to_history_record(run_id, status, yaml_str)
+    return {"code": 200, "data": rec}
+
+
+@app.delete("/api/history/{run_id}")
+async def api_history_delete(run_id: str) -> dict[str, Any]:
+    """Delete a history record from Redis."""
+    store = get_store()
+    r = store.r
+    # Check existence
+    exists = await r.exists(K.STATUS.format(run_id=run_id))
+    if not exists:
+        raise HTTPException(status_code=404, detail="Record not found")
+    # Delete all related keys
+    await r.delete(
+        K.STATUS.format(run_id=run_id),
+        K.EVENTS.format(run_id=run_id),
+        K.RESULT.format(run_id=run_id),
+        K.ERROR.format(run_id=run_id),
+    )
+    await r.zrem(K.RUNS, run_id)
+    return {"code": 200, "message": "Deleted"}
 
 
 # ---------------------------------------------------------------------------
